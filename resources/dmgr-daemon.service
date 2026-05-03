@@ -1,0 +1,12 @@
+[Unit]
+Description=dmgr Device Manager Daemon
+Documentation=https://github.com/isra/dmgr
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/dmgr-daemon
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

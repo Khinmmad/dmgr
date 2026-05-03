@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/dmgr-core",
+    "crates/dmgr-daemon",
+    "crates/dmgr-polkit-helper",
+]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+license = "MIT"
+authors = ["isra"]
+repository = "https://github.com/isra/dmgr"

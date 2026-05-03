@@ -1,0 +1,9 @@
+module dmgr
+DmgrTheme 1.0 theme/DmgrTheme.qml
+DeviceManagerProxy 1.0 dbus/DeviceManagerProxy.qml
+DeviceTree 1.0 components/DeviceTree.qml
+DeviceDetail 1.0 components/DeviceDetail.qml
+DeviceControls 1.0 components/DeviceControls.qml
+SearchBar 1.0 components/SearchBar.qml
+PropertyEditor 1.0 components/PropertyEditor.qml
+StatusIndicator 1.0 components/StatusIndicator.qml

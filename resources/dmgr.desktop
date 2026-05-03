@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=dmgr Device Manager
+Comment=Administrador de dispositivos al estilo Windows
+Exec=dmgr-qml
+Icon=dmgr
+Type=Application
+Categories=System;Settings;HardwareSettings;
+Terminal=false

@@ -1,0 +1,42 @@
+pkgname=dmgr
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Device Manager for Arch Linux - Windows-style hardware management"
+arch=('x86_64')
+url="https://github.com/isra/dmgr"
+license=('MIT')
+depends=('qt6-declarative' 'polkit' 'systemd' 'python' 'python-dasbus' 'python-rich')
+makedepends=('rust' 'cargo')
+install=dmgr.install
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cd "$pkgname-$pkgver"
+    cargo build --release
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+
+    install -Dm755 target/release/dmgr-daemon    "$pkgdir/usr/bin/dmgr-daemon"
+    install -Dm755 target/release/dmgr-polkit-helper "$pkgdir/usr/bin/dmgr-polkit-helper"
+
+    install -Dm644 resources/dmgr.desktop       "$pkgdir/usr/share/applications/dmgr.desktop"
+    install -Dm644 resources/dmgr-daemon.desktop "$pkgdir/usr/share/applications/dmgr-daemon.desktop"
+    install -Dm644 resources/dmgr-daemon.service "$pkgdir/usr/lib/systemd/user/dmgr-daemon.service"
+    install -Dm644 resources/org.dmgr.DeviceManager.policy "$pkgdir/usr/share/polkit-1/actions/org.dmgr.DeviceManager.policy"
+
+    mkdir -p "$pkgdir/usr/share/dmgr/qml"
+    cp -r qml/* "$pkgdir/usr/share/dmgr/qml/"
+
+    mkdir -p "$pkgdir/usr/share/quickshell/modules/dmgr"
+    cp resources/quickshell/metadata.json "$pkgdir/usr/share/quickshell/modules/dmgr/"
+    cp -r qml "$pkgdir/usr/share/quickshell/modules/dmgr/"
+
+    for icon in usb pci audio input block gpu network dmgr; do
+        install -Dm644 "qml/icons/$icon.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/$icon.svg"
+    done
+
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

@@ -1,0 +1,20 @@
+[package]
+name = "dmgr-daemon"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "dmgr-daemon"
+path = "src/main.rs"
+
+[dependencies]
+dmgr-core = { path = "../dmgr-core" }
+zbus = { version = "4", features = ["tokio"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+env_logger = "0.11"
