@@ -289,11 +289,36 @@ fn parse_class_device(
     );
 
     device.driver = read_sysfs_link_target(path, "driver");
-    device.status = read_device_status(path);
+    device.status = read_device_status_with_default(path);
 
-    if matches!(bus, Bus::Input) {
-        device.name = read_sysfs_file(path, "name").unwrap_or(device.name);
-        device.bus_id = Some(name.to_string());
+    match &bus {
+        Bus::Input => {
+            if let Some(n) = read_sysfs_file(path, "name") {
+                device.name = n;
+            }
+            device.bus_id = Some(name.to_string());
+        }
+        Bus::Audio => {
+            if let Some(card_name) = read_sysfs_file(path, "id") {
+                device.name = format!("Sound Card: {}", card_name);
+            } else if let Some(card_num) = read_sysfs_file(path, "number") {
+                device.name = format!("Sound Card {}", card_num);
+            }
+        }
+        Bus::Block => {
+            if let Some(size_str) = read_sysfs_file(path, "size") {
+                if let Ok(sectors) = size_str.trim().parse::<u64>() {
+                    let gb = (sectors * 512) as f64 / 1_000_000_000.0;
+                    device.name = format!("{} ({:.1} GB)", device.name, gb);
+                }
+            }
+        }
+        Bus::Net => {
+            if let Some(addr) = read_sysfs_file(path, "address") {
+                device.name = format!("NIC {} ({})", name, addr);
+            }
+        }
+        _ => {}
     }
 
     read_uevent_into(path, &mut device);
@@ -391,6 +416,27 @@ fn read_device_status(path: &str) -> DeviceStatus {
     let has_driver = read_sysfs_link_target(path, "driver").is_some();
     if !has_driver {
         return DeviceStatus::Unbound;
+    }
+
+    DeviceStatus::Online
+}
+
+fn read_device_status_with_default(path: &str) -> DeviceStatus {
+    let runtime_status = read_sysfs_file(path, "power/runtime_status");
+    if let Some(status) = runtime_status {
+        return DeviceStatus::from_str(&status);
+    }
+
+    let offline = read_sysfs_file(path, "online");
+    if let Some(val) = offline {
+        if val == "0" {
+            return DeviceStatus::Offline;
+        }
+    }
+
+    let has_driver = read_sysfs_link_target(path, "driver").is_some();
+    if !has_driver {
+        return DeviceStatus::Online;
     }
 
     DeviceStatus::Online

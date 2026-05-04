@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, Hash)]
 pub enum Bus {
     Usb,
     Pci,
@@ -15,6 +15,26 @@ pub enum Bus {
     Power,
     IoMMU,
     Unknown(String),
+}
+
+impl Serialize for Bus {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let s = match self {
+            Bus::Usb => "Usb",
+            Bus::Pci => "Pci",
+            Bus::Audio => "Audio",
+            Bus::Input => "Input",
+            Bus::Block => "Block",
+            Bus::Drm => "Drm",
+            Bus::Net => "Net",
+            Bus::Hid => "Hid",
+            Bus::Tty => "Tty",
+            Bus::Power => "Power",
+            Bus::IoMMU => "IoMMU",
+            Bus::Unknown(_) => "Unknown",
+        };
+        serializer.serialize_str(s)
+    }
 }
 
 impl fmt::Display for Bus {
@@ -85,7 +105,8 @@ impl DeviceStatus {
             "suspended" | "suspend" => DeviceStatus::Suspended,
             "offline" | "off" => DeviceStatus::Offline,
             other if other.contains("error") || other.contains("fail") => DeviceStatus::Error,
-            _ => DeviceStatus::Unknown,
+            "unsupported" | "disabled" | "" => DeviceStatus::Online,
+            _ => DeviceStatus::Online,
         }
     }
 

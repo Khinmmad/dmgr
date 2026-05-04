@@ -207,7 +207,8 @@ impl DeviceManager {
     async fn scan_finished(signal_ctxt: &zbus::SignalContext<'_>, count: u32) -> zbus::Result<()>;
 }
 
-async fn run_udev_monitor(store: DeviceStore, conn: zbus::Connection) {
+fn run_udev_monitor(store: DeviceStore, conn: zbus::Connection) {
+    let rt = tokio::runtime::Runtime::new().unwrap();
     let mut monitor = UdevMonitor::new();
 
     let rx = match monitor.start() {
@@ -226,23 +227,23 @@ async fn run_udev_monitor(store: DeviceStore, conn: zbus::Connection) {
             UdevEvent::DeviceAdded(_) => {
                 info!("udev: device added");
                 let count = store.scan().unwrap_or(0) as u32;
-                let _ = emit_signal_device_added(&conn, count).await;
+                let _ = rt.block_on(emit_signal_device_added(&conn, count));
             }
             UdevEvent::DeviceRemoved(_) => {
                 info!("udev: device removed");
                 let count = store.scan().unwrap_or(0) as u32;
-                let _ = emit_signal_device_removed(&conn, count).await;
+                let _ = rt.block_on(emit_signal_device_removed(&conn, count));
             }
             UdevEvent::DeviceChanged(devpath) => {
                 info!("udev: device changed {}", devpath);
                 let _ = store.scan();
-                let _ = emit_signal_device_changed(&conn, &devpath).await;
+                let _ = rt.block_on(emit_signal_device_changed(&conn, &devpath));
             }
             UdevEvent::ScanComplete => {
                 info!("Manual scan triggered");
                 let _ = store.scan();
                 let count = store.get_all().len() as u32;
-                let _ = emit_signal_scan_finished(&conn, count).await;
+                let _ = rt.block_on(emit_signal_scan_finished(&conn, count));
             }
         }
     }
@@ -316,8 +317,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let monitor_store = store.clone();
     let monitor_conn = conn.clone();
-    tokio::spawn(async move {
-        run_udev_monitor(monitor_store, monitor_conn).await;
+    std::thread::spawn(move || {
+        run_udev_monitor(monitor_store, monitor_conn);
     });
 
     info!("dmgr-daemon ready on session bus");
