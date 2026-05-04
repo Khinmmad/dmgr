@@ -1,8 +1,0 @@
-[Desktop Entry]
-Name=dmgr Daemon
-Comment=Device Manager background service
-Exec=/usr/bin/dmgr-daemon
-Type=Application
-Categories=System;
-NoDisplay=true
-X-GNOME-Autostart-enabled=true

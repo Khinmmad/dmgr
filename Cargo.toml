@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
     "crates/dmgr-core",
-    "crates/dmgr-daemon",
+    "crates/dmgr-gui",
     "crates/dmgr-polkit-helper",
 ]
 
