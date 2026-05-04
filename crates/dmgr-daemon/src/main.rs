@@ -285,11 +285,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         store: store.clone(),
     };
 
-    let conn = zbus::ConnectionBuilder::session()?
-        .name("org.dmgr.DeviceManager")?
-        .serve_at("/org/dmgr/DeviceManager", manager)?
+    let conn_result = zbus::ConnectionBuilder::session()?
+        .name("org.dmgr.DeviceManager")
+        .map_err(|e| {
+            error!("DBus name registration failed: {}", e);
+            e
+        })?
+        .serve_at("/org/dmgr/DeviceManager", manager)
+        .map_err(|e| {
+            error!("Failed to serve object: {}", e);
+            e
+        })?
         .build()
-        .await?;
+        .await;
+
+    let conn = match conn_result {
+        Ok(c) => c,
+        Err(zbus::Error::NameTaken) => {
+            eprintln!("dmgr-daemon is already running (DBus name 'org.dmgr.DeviceManager' is taken).");
+            eprintln!("Stop the existing instance first:");
+            eprintln!("  systemctl --user stop dmgr-daemon");
+            eprintln!("  or kill the existing dmgr-daemon process.");
+            std::process::exit(1);
+        }
+        Err(e) => {
+            eprintln!("Failed to start dmgr-daemon: {}", e);
+            std::process::exit(1);
+        }
+    };
 
     let monitor_store = store.clone();
     let monitor_conn = conn.clone();
