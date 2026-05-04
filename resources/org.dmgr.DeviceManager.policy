@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+  "-//freedesktop//DTD polkit Policy Configuration 1.0//EN"
+  "http://www.freedesktop.org/software/polkit/policyconfig-1.dtd">
+
+<policyconfig>
+
+  <vendor>dmgr Device Manager</vendor>
+  <vendor_url>https://github.com/Khinmmad/dmgr</vendor_url>
+
+  <action id="org.dmgr.DeviceManager.bind">
+    <description>Bind a kernel driver to a device</description>
+    <message>Authentication is required to bind a driver to a hardware device.</message>
+    <icon_name>preferences-system</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/dmgr-polkit-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+
+  <action id="org.dmgr.DeviceManager.unbind">
+    <description>Unbind a kernel driver from a device</description>
+    <message>Authentication is required to unbind a driver from a hardware device.</message>
+    <icon_name>preferences-system</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/dmgr-polkit-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+
+  <action id="org.dmgr.DeviceManager.set">
+    <description>Write a sysfs property on a device</description>
+    <message>Authentication is required to modify a hardware device property.</message>
+    <icon_name>preferences-system</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/dmgr-polkit-helper</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+
+</policyconfig>
