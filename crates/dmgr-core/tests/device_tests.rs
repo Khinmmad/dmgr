@@ -17,7 +17,9 @@ fn integration_device_status_mapping() {
     assert_eq!(DeviceStatus::from_str("suspended"), DeviceStatus::Suspended);
     assert_eq!(DeviceStatus::from_str("offline"), DeviceStatus::Offline);
     assert_eq!(DeviceStatus::from_str("error_something"), DeviceStatus::Error);
-    assert_eq!(DeviceStatus::from_str("whatever"), DeviceStatus::Unknown);
+    assert_eq!(DeviceStatus::from_str("whatever"), DeviceStatus::Online);
+    assert_eq!(DeviceStatus::from_str("unsupported"), DeviceStatus::Online);
+    assert_eq!(DeviceStatus::from_str(""), DeviceStatus::Online);
 }
 
 #[test]
