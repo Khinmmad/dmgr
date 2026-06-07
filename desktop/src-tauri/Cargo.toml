@@ -1,0 +1,37 @@
+# Independent (nested) workspace so the repo root workspace stays untouched.
+[workspace]
+
+[package]
+name = "dmgr-desktop"
+version = "2.0.0"
+edition = "2021"
+license = "MIT"
+authors = ["isra"]
+description = "dmgr desktop — Tauri + React device manager"
+
+[lib]
+name = "dmgr_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "dmgr-desktop"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+dmgr-core = { path = "../../crates/dmgr-core" }
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+env_logger = "0.11"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

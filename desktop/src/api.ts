@@ -1,0 +1,47 @@
+// Thin typed wrappers around the Tauri command layer.
+import { invoke } from "@tauri-apps/api/core";
+import type {
+  AudioDevice,
+  BtState,
+  Capabilities,
+  Device,
+} from "./types";
+
+export const api = {
+  // devices
+  scanDevices: () => invoke<Device[]>("scan_devices"),
+  availableDrivers: (path: string) =>
+    invoke<string[]>("get_available_drivers", { path }),
+  getProperty: (path: string, property: string) =>
+    invoke<string | null>("get_property", { path, property }),
+  setProperty: (path: string, property: string, value: string) =>
+    invoke<void>("set_property", { path, property, value }),
+  bindDriver: (path: string, driver: string) =>
+    invoke<void>("bind_driver", { path, driver }),
+  unbindDriver: (path: string) => invoke<void>("unbind_driver", { path }),
+  setDeviceEnabled: (path: string, enabled: boolean) =>
+    invoke<void>("set_device_enabled", { path, enabled }),
+
+  // audio
+  audioOutputs: () => invoke<AudioDevice[]>("audio_outputs"),
+  audioInputs: () => invoke<AudioDevice[]>("audio_inputs"),
+  setDefaultOutput: (name: string) =>
+    invoke<void>("audio_set_default_output", { name }),
+  setDefaultInput: (name: string) =>
+    invoke<void>("audio_set_default_input", { name }),
+  setVolume: (name: string, percent: number) =>
+    invoke<void>("audio_set_volume", { name, percent }),
+  setMute: (name: string, muted: boolean) =>
+    invoke<void>("audio_set_mute", { name, muted }),
+
+  // bluetooth
+  btState: () => invoke<BtState>("bt_state"),
+  btConnect: (mac: string) => invoke<void>("bt_connect", { mac }),
+  btDisconnect: (mac: string) => invoke<void>("bt_disconnect", { mac }),
+  btSetPower: (on: boolean) => invoke<void>("bt_set_power", { on }),
+  btSetTrust: (mac: string, trust: boolean) =>
+    invoke<void>("bt_set_trust", { mac, trust }),
+
+  // meta
+  capabilities: () => invoke<Capabilities>("capabilities"),
+};
