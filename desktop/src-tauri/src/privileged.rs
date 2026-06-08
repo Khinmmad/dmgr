@@ -101,6 +101,59 @@ pub fn run_privileged(args: &[&str]) -> Result<(), String> {
     }
 }
 
+/// Resolve a program to an absolute path (pkexec requires a full path).
+fn which(prog: &str) -> Option<String> {
+    let out = Command::new("sh")
+        .arg("-c")
+        .arg(format!("command -v {prog}"))
+        .output()
+        .ok()?;
+    if out.status.success() {
+        let p = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        (!p.is_empty()).then_some(p)
+    } else {
+        None
+    }
+}
+
+/// Run an arbitrary system program with root via pkexec (e.g. modprobe).
+/// Used for actions the dedicated helper doesn't cover.
+pub fn run_pkexec(prog: &str, args: &[&str]) -> Result<(), String> {
+    let full = which(prog).ok_or_else(|| format!("'{prog}' not found"))?;
+
+    if is_root() {
+        let status = Command::new(&full)
+            .args(args)
+            .status()
+            .map_err(|e| format!("{prog} failed: {e}"))?;
+        return if status.success() {
+            Ok(())
+        } else {
+            Err(format!("{prog} {} failed", args.join(" ")))
+        };
+    }
+
+    if !has_pkexec() {
+        return Err("'pkexec' (polkit) not found — run dmgr as root for this action".into());
+    }
+
+    let status = Command::new("pkexec")
+        .arg(&full)
+        .args(args)
+        .status()
+        .map_err(|e| format!("pkexec failed to launch: {e}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        match status.code() {
+            Some(126) => Err("Authorization dialog dismissed".into()),
+            Some(127) => Err("Not authorized (polkit denied the action)".into()),
+            Some(c) => Err(format!("{prog} failed (exit {c})")),
+            None => Err(format!("{prog} terminated by signal")),
+        }
+    }
+}
+
 /// Direct core call when running as root.
 fn run_direct(args: &[&str]) -> Result<(), String> {
     use dmgr_core::{control, properties};

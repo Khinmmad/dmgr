@@ -4,7 +4,10 @@ import type {
   AudioDevice,
   BtState,
   Capabilities,
+  DetailItem,
   Device,
+  KernelModule,
+  ModuleInfo,
   Platform,
 } from "./types";
 
@@ -42,6 +45,19 @@ export const api = {
   btSetPower: (on: boolean) => invoke<void>("bt_set_power", { on }),
   btSetTrust: (mac: string, trust: boolean) =>
     invoke<void>("bt_set_trust", { mac, trust }),
+
+  // advanced details
+  advancedDetails: (path: string, bus: string) =>
+    invoke<DetailItem[]>("advanced_details", { path, bus }),
+
+  // kernel modules
+  kernelModules: () => invoke<KernelModule[]>("kernel_modules"),
+  kernelModuleInfo: (name: string) =>
+    invoke<ModuleInfo>("kernel_module_info", { name }),
+  kernelModuleLoad: (name: string) =>
+    invoke<void>("kernel_module_load", { name }),
+  kernelModuleUnload: (name: string) =>
+    invoke<void>("kernel_module_unload", { name }),
 
   // meta
   capabilities: () => invoke<Capabilities>("capabilities"),

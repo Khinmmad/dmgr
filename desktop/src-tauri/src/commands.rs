@@ -1,7 +1,7 @@
 //! Tauri command surface — everything the React frontend can invoke.
 
 use crate::backend::Backend;
-use crate::{audio, bluetooth, platform};
+use crate::{audio, bluetooth, details, kernel, platform};
 use dmgr_core::device::Device;
 use serde::Serialize;
 use tauri::State;
@@ -151,4 +151,33 @@ pub fn capabilities() -> Capabilities {
 #[tauri::command]
 pub fn platform_info() -> platform::Platform {
     platform::detect()
+}
+
+// ── Advanced details ─────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn advanced_details(path: String, bus: String) -> Vec<details::DetailItem> {
+    details::advanced(&path, &bus)
+}
+
+// ── Kernel modules ───────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn kernel_modules() -> Vec<kernel::KernelModule> {
+    kernel::list()
+}
+
+#[tauri::command]
+pub fn kernel_module_info(name: String) -> kernel::ModuleInfo {
+    kernel::info(&name)
+}
+
+#[tauri::command]
+pub fn kernel_module_load(name: String) -> Result<(), String> {
+    kernel::load(&name)
+}
+
+#[tauri::command]
+pub fn kernel_module_unload(name: String) -> Result<(), String> {
+    kernel::unload(&name)
 }

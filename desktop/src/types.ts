@@ -83,6 +83,30 @@ export interface Capabilities {
   root: boolean;
 }
 
+export interface DetailItem {
+  label: string;
+  value: string;
+}
+
+export interface KernelModule {
+  name: string;
+  size_kb: number;
+  refcount: number;
+  used_by: string[];
+  state: string;
+}
+
+export interface ModuleInfo {
+  name: string;
+  filename: string | null;
+  description: string | null;
+  author: string | null;
+  license: string | null;
+  version: string | null;
+  depends: string[];
+  params: string[];
+}
+
 export interface Platform {
   os: string;
   distro_id: string;

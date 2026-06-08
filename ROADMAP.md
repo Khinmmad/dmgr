@@ -65,12 +65,15 @@ monitor started" confirmed, root `cargo test` unaffected.
 - **X11 + Wayland / multi-GPU — ✅** the WebKit DMABUF flag now applies **only** on Nvidia + Wayland
   (`platform::apply_webkit_workarounds`), leaving Intel/AMD and X11 on the faster default path.
 
-## Sprint 3 — Depth
+## Sprint 3 — Depth ✅ DONE (2026-06-07)
 
-- **Advanced details panel:** per-device `lspci -v` / `lsusb -v` parse — firmware, IRQs, link speeds (PCIe gen/lanes,
-  USB 2/3 speed), power management state. New command + a collapsible "Advanced" section in `DeviceDetail.tsx`.
-- **Kernel module management:** list loaded modules (`lsmod`), load/unload (`modprobe`/`rmmod`), show deps and
-  params. New panel + commands (privileged for load/unload). Linux-only — gate behind capability.
+- **Advanced details panel — ✅** `details.rs` reads a curated set of sysfs attributes per bus (PCIe link
+  speed/width, IRQ, MSI count; USB version/speed/power; Net MAC/speed/MTU; Block size/scheduler; DRM status;
+  plus runtime-PM for all). No lspci/lsusb dependency. Collapsible, lazy-loaded "Advanced details" section in
+  `DeviceDetail.tsx` via `advanced_details` command.
+- **Kernel module management — ✅** `kernel.rs` parses `/proc/modules`, `modinfo` for details, and load/unload via
+  `modprobe` through `privileged::run_pkexec` (new generic pkexec runner). New **Modules** tab
+  (`ModulesPanel.tsx`): search, expand for modinfo, load by name, unload (with in-use confirm).
 
 ## Sprint 4 — Linux packaging
 

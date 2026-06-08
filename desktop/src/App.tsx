@@ -8,8 +8,9 @@ import type { NavMode } from "./components/Sidebar";
 import DeviceDetail from "./components/DeviceDetail";
 import AudioPanel from "./components/AudioPanel";
 import BluetoothPanel from "./components/BluetoothPanel";
+import ModulesPanel from "./components/ModulesPanel";
 
-export type View = "devices" | "audio" | "bluetooth";
+export type View = "devices" | "audio" | "bluetooth" | "modules";
 export type Notify = (msg: string, kind?: "ok" | "err") => void;
 
 // Internal kernel sub-nodes that aren't user-facing "devices":
@@ -116,6 +117,12 @@ export default function App() {
         >
           🔵 Bluetooth
         </button>
+        <button
+          className={`iconbtn ${view === "modules" ? "active" : ""}`}
+          onClick={() => setView("modules")}
+        >
+          🧩 Modules
+        </button>
         <span className="spacer" />
         {view === "devices" && (
           <>
@@ -182,6 +189,7 @@ export default function App() {
 
         {view === "audio" && <AudioPanel notify={notify} />}
         {view === "bluetooth" && <BluetoothPanel notify={notify} />}
+        {view === "modules" && <ModulesPanel notify={notify} />}
       </main>
 
       {platform && (

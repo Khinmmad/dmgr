@@ -2,7 +2,9 @@ mod audio;
 mod backend;
 mod bluetooth;
 mod commands;
+mod details;
 mod hotplug;
+mod kernel;
 mod platform;
 mod privileged;
 
@@ -41,6 +43,11 @@ pub fn run() {
             commands::bt_set_trust,
             commands::capabilities,
             commands::platform_info,
+            commands::advanced_details,
+            commands::kernel_modules,
+            commands::kernel_module_info,
+            commands::kernel_module_load,
+            commands::kernel_module_unload,
         ])
         .run(tauri::generate_context!())
         .expect("error while running dmgr-desktop");

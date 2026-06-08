@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Notify } from "../App";
 import { api } from "../api";
-import type { Device } from "../types";
+import type { DetailItem, Device } from "../types";
 import { BUS_META, STATUS_META } from "../types";
 import PropertyTable from "./PropertyTable";
 
@@ -145,10 +145,64 @@ export default function DeviceDetail({ device, notify, onChanged }: Props) {
         </div>
       </div>
 
+      {/* Advanced details (lazy) */}
+      <AdvancedSection path={device.path} bus={device.bus} />
+
       {/* Properties */}
       <div className="section-h">Properties</div>
       <PropertyTable device={device} notify={notify} onChanged={onChanged} />
     </div>
+  );
+}
+
+function AdvancedSection({ path, bus }: { path: string; bus: string }) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<DetailItem[] | null>(null);
+
+  useEffect(() => {
+    setItems(null);
+    setOpen(false);
+  }, [path]);
+
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    if (next && items === null) {
+      api.advancedDetails(path, bus).then(setItems).catch(() => setItems([]));
+    }
+  };
+
+  return (
+    <>
+      <button
+        className="section-h"
+        style={{ background: "none", cursor: "pointer", display: "flex", gap: 6 }}
+        onClick={toggle}
+      >
+        <span style={{ color: "var(--overlay)" }}>{open ? "▾" : "▸"}</span>
+        Advanced details
+      </button>
+      {open && (
+        <div className="card">
+          {items === null ? (
+            <div className="panel-sub">Reading sysfs…</div>
+          ) : items.length === 0 ? (
+            <div className="panel-sub">No advanced details for this device.</div>
+          ) : (
+            <table className="prop-table">
+              <tbody>
+                {items.map((it) => (
+                  <tr key={it.label}>
+                    <td className="k">{it.label}</td>
+                    <td className="v">{it.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </>
   );
 }
 
