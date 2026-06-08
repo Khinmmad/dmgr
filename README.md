@@ -78,8 +78,9 @@ cargo build --release -p dmgr-polkit-helper
 cd desktop
 npm install
 npm run tauri dev        # hot-reload dev window
-# or a release binary:
-npm run build && cargo build --release --manifest-path src-tauri/Cargo.toml
+# or a release binary (custom-protocol is REQUIRED — without it the app
+# loads the dev server and shows a "localhost failed" error):
+npm run build && cargo build --release --features custom-protocol --manifest-path src-tauri/Cargo.toml
 ./src-tauri/target/release/dmgr-desktop
 ```
 

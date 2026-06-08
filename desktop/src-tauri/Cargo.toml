@@ -17,6 +17,14 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 name = "dmgr-desktop"
 path = "src/main.rs"
 
+[features]
+# Production builds MUST enable this. With `custom-protocol` off, the `tauri`
+# crate compiles in dev mode (`cfg(dev)`) and the app loads `build.devUrl`
+# (http://localhost:1420) instead of the embedded frontend — the cause of the
+# "localhost failed" error in packaged builds. The Tauri CLI enables it
+# automatically; plain `cargo build` does not, so pass `--features custom-protocol`.
+custom-protocol = ["tauri/custom-protocol"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

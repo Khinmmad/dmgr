@@ -29,11 +29,17 @@ npm run tauri dev      # hot-reload dev window
 ```bash
 cd desktop
 npm run build                       # frontend -> dist/
-cargo build --release --manifest-path src-tauri/Cargo.toml
+cargo build --release --features custom-protocol --manifest-path src-tauri/Cargo.toml
 ./src-tauri/target/release/dmgr-desktop
 ```
 
 The frontend is embedded in the binary, so it runs standalone.
+
+> **`--features custom-protocol` is mandatory.** Without it, the `tauri` crate
+> compiles in dev mode and the binary tries to load the Vite dev server at
+> `http://localhost:1420` at runtime ("localhost failed"). `cargo tauri build`
+> enables this automatically; plain `cargo build` does not. Equivalently you can
+> run `npm run tauri build -- --no-bundle` to get just the binary.
 
 ## Packaging
 
@@ -63,7 +69,9 @@ bundles ship the GUI **plus** `dmgr-polkit-helper` and the polkit policy (via
 cd desktop
 npm install
 npm run build
-cargo build --release --manifest-path src-tauri/Cargo.toml
+# Standalone binary (note custom-protocol, same as Linux):
+cargo build --release --features custom-protocol --manifest-path src-tauri/Cargo.toml
+# Or a packaged installer (the CLI sets custom-protocol for you):
 npm run tauri build -- --bundles nsis   # or msi
 ```
 The Windows device backend (`src-tauri/src/backend/windows.rs`) uses PowerShell
