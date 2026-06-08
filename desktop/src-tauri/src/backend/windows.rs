@@ -23,7 +23,7 @@ impl DeviceBackend for WindowsBackend {
 
         let items = match value {
             serde_json::Value::Array(a) => a,
-            serde_json::Value::Object(_) => vec![value], // single device
+            obj @ serde_json::Value::Object(_) => vec![obj], // single device
             _ => Vec::new(),
         };
 

@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Linux: core tests + full desktop build (the verified platform) ──────────
+  linux:
+    name: Linux (core tests + desktop build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libudev-dev \
+            libsoup-3.0-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            desktop/src-tauri
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Core + helper tests
+        run: cargo test -p dmgr-core -p dmgr-polkit-helper
+
+      - name: Build frontend
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build desktop backend (Tauri)
+        working-directory: desktop
+        run: cargo build --release --manifest-path src-tauri/Cargo.toml
+
+  # ── Windows: verifies the Sprint 5 WindowsBackend actually compiles ─────────
+  windows:
+    name: Windows (desktop build — verifies WindowsBackend)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Build frontend
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build desktop backend (compiles backend/windows.rs)
+        working-directory: desktop
+        run: cargo build --release --manifest-path src-tauri/Cargo.toml
