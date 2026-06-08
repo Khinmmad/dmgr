@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { api } from "./api";
 import type { Capabilities, Device } from "./types";
 import { NOISE_BUSES } from "./types";
 import Sidebar from "./components/Sidebar";
+import type { NavMode } from "./components/Sidebar";
 import DeviceDetail from "./components/DeviceDetail";
 import AudioPanel from "./components/AudioPanel";
 import BluetoothPanel from "./components/BluetoothPanel";
@@ -32,6 +34,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [showAll, setShowAll] = useState(false);
+  const [navMode, setNavMode] = useState<NavMode>("bus");
   const [view, setView] = useState<View>("devices");
   const [caps, setCaps] = useState<Capabilities | null>(null);
   const [toast, setToast] = useState<{ msg: string; kind: "ok" | "err" } | null>(null);
@@ -56,6 +59,19 @@ export default function App() {
   useEffect(() => {
     api.capabilities().then(setCaps).catch(() => {});
     refresh();
+  }, [refresh]);
+
+  // Live hotplug: backend emits `devices-changed`; debounce bursts then re-scan.
+  const debounceRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    const unlisten = listen("devices-changed", () => {
+      window.clearTimeout(debounceRef.current);
+      debounceRef.current = window.setTimeout(refresh, 400);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+      window.clearTimeout(debounceRef.current);
+    };
   }, [refresh]);
 
   const visible = useMemo(() => {
@@ -107,6 +123,20 @@ export default function App() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+            <button
+              className={`iconbtn ${navMode === "bus" ? "active" : ""}`}
+              onClick={() => setNavMode("bus")}
+              title="Group by bus"
+            >
+              Bus
+            </button>
+            <button
+              className={`iconbtn ${navMode === "tree" ? "active" : ""}`}
+              onClick={() => setNavMode("tree")}
+              title="Hierarchy (parent / child)"
+            >
+              Tree
+            </button>
             <label className="toggle">
               <input
                 type="checkbox"
@@ -124,6 +154,7 @@ export default function App() {
 
       <Sidebar
         view={view}
+        mode={navMode}
         devices={visible}
         total={devices.length}
         selectedId={selectedId}

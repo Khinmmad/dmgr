@@ -2,9 +2,13 @@ import { useMemo } from "react";
 import type { View } from "../App";
 import type { Bus, Device } from "../types";
 import { BUS_META, STATUS_META } from "../types";
+import DeviceTree from "./DeviceTree";
+
+export type NavMode = "bus" | "tree";
 
 interface Props {
   view: View;
+  mode: NavMode;
   devices: Device[];
   total: number;
   selectedId: string | null;
@@ -26,7 +30,7 @@ const BUS_ORDER: Bus[] = [
   "Unknown",
 ];
 
-export default function Sidebar({ devices, selectedId, onSelect }: Props) {
+export default function Sidebar({ mode, devices, selectedId, onSelect }: Props) {
   const groups = useMemo(() => {
     const map = new Map<Bus, Device[]>();
     for (const d of devices) {
@@ -39,6 +43,20 @@ export default function Sidebar({ devices, selectedId, onSelect }: Props) {
       items: map.get(b)!,
     }));
   }, [devices]);
+
+  if (mode === "tree") {
+    return (
+      <nav className="sidebar">
+        {devices.length === 0 ? (
+          <div className="empty" style={{ padding: "30px 10px" }}>
+            No devices match.
+          </div>
+        ) : (
+          <DeviceTree devices={devices} selectedId={selectedId} onSelect={onSelect} />
+        )}
+      </nav>
+    );
+  }
 
   return (
     <nav className="sidebar">

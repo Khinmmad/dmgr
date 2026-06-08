@@ -844,12 +844,14 @@ version = "2.0.0"
 dependencies = [
  "dmgr-core",
  "env_logger",
+ "libc",
  "log",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
+ "udev",
 ]
 
 [[package]]

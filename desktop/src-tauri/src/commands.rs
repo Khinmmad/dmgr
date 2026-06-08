@@ -1,8 +1,10 @@
 //! Tauri command surface — everything the React frontend can invoke.
 
-use crate::{audio, bluetooth, privileged};
-use dmgr_core::{device::Device, properties, sysfs};
+use crate::backend::Backend;
+use crate::{audio, bluetooth};
+use dmgr_core::device::Device;
 use serde::Serialize;
+use tauri::State;
 
 #[derive(Serialize)]
 pub struct Capabilities {
@@ -11,44 +13,63 @@ pub struct Capabilities {
     pub root: bool,
 }
 
-// ── Devices ──────────────────────────────────────────────────────────────────
+// ── Devices (routed through the OS-abstracted backend) ───────────────────────
 
 #[tauri::command]
-pub fn scan_devices() -> Result<Vec<Device>, String> {
-    sysfs::scan_all_devices().map_err(|e| e.to_string())
+pub fn scan_devices(backend: State<'_, Backend>) -> Result<Vec<Device>, String> {
+    backend.scan()
 }
 
 #[tauri::command]
-pub fn get_available_drivers(path: String) -> Result<Vec<String>, String> {
-    properties::get_available_drivers(&path).map_err(|e| e.to_string())
+pub fn get_available_drivers(
+    backend: State<'_, Backend>,
+    path: String,
+) -> Result<Vec<String>, String> {
+    backend.available_drivers(&path)
 }
 
 #[tauri::command]
-pub fn get_property(path: String, property: String) -> Result<Option<String>, String> {
-    properties::get_property(&path, &property).map_err(|e| e.to_string())
+pub fn get_property(
+    backend: State<'_, Backend>,
+    path: String,
+    property: String,
+) -> Result<Option<String>, String> {
+    backend.get_property(&path, &property)
 }
 
-/// Modify an editable sysfs property (privileged).
+/// Modify an editable property (privileged).
 #[tauri::command]
-pub fn set_property(path: String, property: String, value: String) -> Result<(), String> {
-    privileged::run_privileged(&["set", &path, &property, &value])
+pub fn set_property(
+    backend: State<'_, Backend>,
+    path: String,
+    property: String,
+    value: String,
+) -> Result<(), String> {
+    backend.set_property(&path, &property, &value)
 }
 
 #[tauri::command]
-pub fn bind_driver(path: String, driver: String) -> Result<(), String> {
-    privileged::run_privileged(&["bind", &path, &driver])
+pub fn bind_driver(
+    backend: State<'_, Backend>,
+    path: String,
+    driver: String,
+) -> Result<(), String> {
+    backend.bind(&path, &driver)
 }
 
 #[tauri::command]
-pub fn unbind_driver(path: String) -> Result<(), String> {
-    privileged::run_privileged(&["unbind", &path])
+pub fn unbind_driver(backend: State<'_, Backend>, path: String) -> Result<(), String> {
+    backend.unbind(&path)
 }
 
-/// Windows-style "Enable/Disable device" — toggles the USB `authorized` flag.
+/// Windows-style "Enable/Disable device".
 #[tauri::command]
-pub fn set_device_enabled(path: String, enabled: bool) -> Result<(), String> {
-    let value = if enabled { "1" } else { "0" };
-    privileged::run_privileged(&["set", &path, "authorized", value])
+pub fn set_device_enabled(
+    backend: State<'_, Backend>,
+    path: String,
+    enabled: bool,
+) -> Result<(), String> {
+    backend.set_enabled(&path, enabled)
 }
 
 // ── Audio ────────────────────────────────────────────────────────────────────

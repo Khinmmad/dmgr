@@ -1,6 +1,8 @@
 mod audio;
+mod backend;
 mod bluetooth;
 mod commands;
+mod hotplug;
 mod privileged;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -16,6 +18,11 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .manage(backend::current_backend())
+        .setup(|app| {
+            hotplug::spawn(app.handle().clone());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::scan_devices,
             commands::get_available_drivers,

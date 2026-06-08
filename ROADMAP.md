@@ -10,9 +10,15 @@ unblocks Windows, multi-backend audio and multi-distro support, so it comes firs
 
 ---
 
-## Sprint 1 — Foundation + quick wins ⭐ (start here)
+## Sprint 1 — Foundation + quick wins ✅ DONE (2026-06-07)
 
-### 1a. `DeviceBackend` trait abstraction
+Delivered in `desktop/src-tauri/src/backend/` (trait + `linux.rs`), `hotplug.rs`,
+and `desktop/src/components/DeviceTree.tsx`. Backend trait now backs all device
+commands via Tauri managed state; live udev hotplug emits `devices-changed`;
+sidebar has a Bus/Tree toggle. Verified: builds clean, app launches, "hotplug
+monitor started" confirmed, root `cargo test` unaffected.
+
+### 1a. `DeviceBackend` trait abstraction — ✅
 - **Goal:** route every Tauri device command through a `Box<dyn DeviceBackend>` chosen at runtime by OS,
   so a `WindowsBackend` can be added later without touching the UI or command layer.
 - **Where:** new module e.g. `crates/dmgr-core/src/backend.rs` (trait + `LinuxBackend`) or a thin layer in
@@ -32,14 +38,14 @@ unblocks Windows, multi-backend audio and multi-distro support, so it comes firs
   ```
 - **Acceptance:** `commands.rs` calls the trait; Linux behaviour identical; `cargo build` + root `cargo test` green.
 
-### 1b. Live hotplug (udev events → UI)
+### 1b. Live hotplug (udev events → UI) — ✅
 - **Goal:** UI refreshes itself on connect/disconnect; highlight newly-added devices (fade green, like egui v2 did).
 - **Where:** `crates/dmgr-core/src/udev.rs` already has `UdevMonitor` (mpsc channel). In `lib.rs`, spawn a thread
   that forwards `UdevEvent`s as Tauri events via `app.emit("device-changed", ...)`. Frontend: `listen()` in
   `App.tsx`, debounce, re-scan.
 - **Acceptance:** plugging a USB device updates the sidebar within ~1s without manual refresh.
 
-### 1c. Hierarchical tree view
+### 1c. Hierarchical tree view — ✅
 - **Goal:** parent/child tree like Windows Device Manager (USB hubs → devices, PCI bridges → functions).
 - **Where:** `Device.parent` / `Device.children` already populated. Build the tree in `Sidebar.tsx` (or a new
   `DeviceTree.tsx`); add expand/collapse. Offer a toggle between "by bus" (current) and "by hierarchy".
