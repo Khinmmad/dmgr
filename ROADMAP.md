@@ -88,11 +88,18 @@ monitor started" confirmed, root `cargo test` unaffected.
   package includes it). To make deb/rpm self-sufficient, pre-build the helper and add it via
   `bundle.linux.{deb,rpm}.files`.
 
-## Sprint 5 — Windows (last; depends on Sprint 1a)
+## Sprint 5 — Windows ⚠ WRITTEN, UNVERIFIED (2026-06-07)
 
-- **`WindowsBackend`:** implement the `DeviceBackend` trait via the `windows` crate (SetupAPI / CfgMgr32 / WMI)
-  or PowerShell (`Get-PnpDevice`, `Enable-PnpDevice`, `Disable-PnpDevice`). Map to the existing `Device` shape.
-- **MSI installer:** Tauri NSIS/MSI bundle target. Not testable from Arch — needs a Windows box / CI.
+- **`WindowsBackend` — written (untested)** `desktop/src-tauri/src/backend/windows.rs` implements the
+  `DeviceBackend` trait via **PowerShell** (`Get-PnpDevice` → JSON → `Device`, `Get-PnpDeviceProperty`,
+  `Enable-PnpDevice`/`Disable-PnpDevice` for enable/disable). `#[cfg(target_os = "windows")]`, wired in
+  `backend/mod.rs::current_backend()`. **Cannot be compiled/run from the Arch dev box** (no Windows target or
+  mingw installed), so it's unverified — needs a Windows machine or CI to validate.
+- **MSI installer:** on Windows, `npm run tauri build -- --bundles nsis` (or `msi`) produces the installer;
+  Tauri handles NSIS/WiX. The Linux `bundle.targets` is left as deb/rpm/appimage so Linux builds don't break.
+- **Windows follow-ups:** audio/Bluetooth/kernel-module panels are Linux-only and degrade to empty on Windows;
+  driver enumeration (pnputil) and parent/child hierarchy aren't mapped yet. Consider switching from PowerShell
+  to the `windows` crate (SetupAPI/CfgMgr32) for speed once it can be tested.
 
 ---
 

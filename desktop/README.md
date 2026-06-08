@@ -56,6 +56,20 @@ Tauri's deb/rpm bundlers are pure-Rust (no `dpkg-deb`/`rpmbuild` required).
 > package for the complete experience, or build the helper
 > (`cargo build --release -p dmgr-polkit-helper`) and install it to `/usr/bin`.
 
+**Windows (experimental, unverified):**
+```powershell
+cd desktop
+npm install
+npm run build
+cargo build --release --manifest-path src-tauri/Cargo.toml
+npm run tauri build -- --bundles nsis   # or msi
+```
+The Windows device backend (`src-tauri/src/backend/windows.rs`) uses PowerShell
+(`Get-PnpDevice`, `Enable/Disable-PnpDevice`). It has **not** been compiled or
+tested on Windows yet. Audio/Bluetooth/kernel-module panels are Linux-only and
+appear empty on Windows. Enable/Disable actions require running the app as
+Administrator.
+
 ## Notes
 
 - On **Nvidia + Wayland**, WebKitGTK is started with

@@ -7,6 +7,8 @@ use dmgr_core::device::Device;
 
 #[cfg(target_os = "linux")]
 mod linux;
+#[cfg(target_os = "windows")]
+mod windows;
 
 /// Everything the UI can ask of the host OS regarding devices.
 pub trait DeviceBackend: Send + Sync {
@@ -29,17 +31,20 @@ pub fn current_backend() -> Backend {
     {
         Box::new(linux::LinuxBackend)
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "windows")]
     {
-        // Sprint 5 will add a WindowsBackend here.
+        Box::new(windows::WindowsBackend)
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+    {
         Box::new(Unsupported)
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
 struct Unsupported;
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
 impl DeviceBackend for Unsupported {
     fn scan(&self) -> Result<Vec<Device>, String> {
         Err("device management is not implemented for this OS yet".into())
