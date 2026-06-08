@@ -93,6 +93,15 @@ export default function App() {
 
   const selected = devices.find((d) => d.id === selectedId) ?? null;
 
+  // Audio, Bluetooth and kernel-module panels are Linux-only; hide them elsewhere
+  // (default to showing until platform is known, so Linux doesn't flicker).
+  const linuxOnly = !platform || platform.os === "linux";
+
+  // If we're on a non-Linux OS and somehow on a hidden view, fall back to devices.
+  useEffect(() => {
+    if (!linuxOnly && view !== "devices") setView("devices");
+  }, [linuxOnly, view]);
+
   return (
     <div className="app">
       <header className="topbar">
@@ -103,26 +112,30 @@ export default function App() {
         >
           Devices
         </button>
-        <button
-          className={`iconbtn ${view === "audio" ? "active" : ""}`}
-          onClick={() => setView("audio")}
-          disabled={caps ? !caps.audio : false}
-          title={caps && !caps.audio ? "pactl not available" : ""}
-        >
-          🔊 Audio
-        </button>
-        <button
-          className={`iconbtn ${view === "bluetooth" ? "active" : ""}`}
-          onClick={() => setView("bluetooth")}
-        >
-          🔵 Bluetooth
-        </button>
-        <button
-          className={`iconbtn ${view === "modules" ? "active" : ""}`}
-          onClick={() => setView("modules")}
-        >
-          🧩 Modules
-        </button>
+        {linuxOnly && (
+          <>
+            <button
+              className={`iconbtn ${view === "audio" ? "active" : ""}`}
+              onClick={() => setView("audio")}
+              disabled={caps ? !caps.audio : false}
+              title={caps && !caps.audio ? "pactl not available" : ""}
+            >
+              🔊 Audio
+            </button>
+            <button
+              className={`iconbtn ${view === "bluetooth" ? "active" : ""}`}
+              onClick={() => setView("bluetooth")}
+            >
+              🔵 Bluetooth
+            </button>
+            <button
+              className={`iconbtn ${view === "modules" ? "active" : ""}`}
+              onClick={() => setView("modules")}
+            >
+              🧩 Modules
+            </button>
+          </>
+        )}
         <span className="spacer" />
         {view === "devices" && (
           <>
@@ -178,7 +191,12 @@ export default function App() {
           (loading ? (
             <div className="spinner">Scanning devices…</div>
           ) : selected ? (
-            <DeviceDetail device={selected} notify={notify} onChanged={refresh} />
+            <DeviceDetail
+              device={selected}
+              os={platform?.os ?? "linux"}
+              notify={notify}
+              onChanged={refresh}
+            />
           ) : (
             <div className="empty">
               Select a device from the left to view and manage it.
@@ -195,16 +213,24 @@ export default function App() {
       {platform && (
         <footer className="statusbar">
           <span title={platform.distro_name}>
-            🐧 {platform.distro_id} · {platform.session}
+            {platform.os === "windows" ? "🪟" : platform.os === "macos" ? "🍎" : "🐧"}{" "}
+            {platform.os === "windows" ? platform.distro_name : platform.distro_id}
+            {platform.session ? ` · ${platform.session}` : ""}
             {platform.gpu_nvidia ? " · nvidia" : ""}
           </span>
-          <span>· 🔊 {platform.audio_backend}</span>
+          {platform.audio_backend && platform.audio_backend !== "none" && (
+            <span>· 🔊 {platform.audio_backend}</span>
+          )}
           {!platform.can_elevate && (
             <span
               className="warn"
-              title={`Privileged actions unavailable. Install dmgr-polkit-helper + polkit. ${platform.package_hint}`}
+              title={
+                platform.os === "windows"
+                  ? "Not running as Administrator. Enable/Disable will prompt for elevation (UAC)."
+                  : `Privileged actions unavailable. Install dmgr-polkit-helper + polkit. ${platform.package_hint}`
+              }
             >
-              · ⚠ no root
+              · ⚠ {platform.os === "windows" ? "not admin" : "no root"}
             </span>
           )}
         </footer>

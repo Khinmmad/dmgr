@@ -3,6 +3,7 @@
 //! version/speed/power, runtime PM, etc.
 
 use serde::Serialize;
+#[cfg(not(target_os = "windows"))]
 use std::path::Path;
 
 #[derive(Serialize)]
@@ -11,6 +12,7 @@ pub struct DetailItem {
     pub value: String,
 }
 
+#[cfg(not(target_os = "windows"))]
 fn read(base: &str, rel: &str) -> Option<String> {
     let v = std::fs::read_to_string(Path::new(base).join(rel)).ok()?;
     let v = v.trim().to_string();
@@ -21,6 +23,7 @@ fn read(base: &str, rel: &str) -> Option<String> {
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 fn push(out: &mut Vec<DetailItem>, label: &str, base: &str, rel: &str) {
     if let Some(value) = read(base, rel) {
         out.push(DetailItem {
@@ -32,6 +35,74 @@ fn push(out: &mut Vec<DetailItem>, label: &str, base: &str, rel: &str) {
 
 /// `bus` is the serialized Bus string ("Pci", "Usb", ...).
 pub fn advanced(path: &str, bus: &str) -> Vec<DetailItem> {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = bus; // Windows keys off the PnP instance id, not the bus.
+        return windows_advanced(path);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        advanced_sysfs(path, bus)
+    }
+}
+
+/// Driver and PnP identity details for a Windows device, read via
+/// `Get-PnpDeviceProperty` (the reliable per-device API; pnputil enumerates the
+/// whole driver store and doesn't map cleanly to a single device).
+#[cfg(target_os = "windows")]
+fn windows_advanced(instance_id: &str) -> Vec<DetailItem> {
+    use std::process::Command;
+
+    // (label, DEVPKEY). Order is the display order.
+    const KEYS: &[(&str, &str)] = &[
+        ("Manufacturer", "DEVPKEY_Device_Manufacturer"),
+        ("Class", "DEVPKEY_Device_Class"),
+        ("Driver provider", "DEVPKEY_Device_DriverProvider"),
+        ("Driver version", "DEVPKEY_Device_DriverVersion"),
+        ("Driver date", "DEVPKEY_Device_DriverDate"),
+        ("Driver package (INF)", "DEVPKEY_Device_DriverInfPath"),
+        ("Service", "DEVPKEY_Device_Service"),
+        ("Location", "DEVPKEY_Device_LocationInfo"),
+        ("Hardware IDs", "DEVPKEY_Device_HardwareIds"),
+    ];
+
+    let id = instance_id.replace('\'', "''");
+    // One round-trip: emit "label<TAB>value" per key, skipping blanks. `-join`
+    // flattens array-valued props (e.g. HardwareIds) into one line.
+    let mut script = format!("$id = '{id}'\n");
+    for (label, key) in KEYS {
+        script.push_str(&format!(
+            "try {{ $d = (Get-PnpDeviceProperty -InstanceId $id -KeyName '{key}' -ErrorAction Stop).Data; \
+             if ($d) {{ \"{label}`t$($d -join ', ')\" }} }} catch {{}}\n"
+        ));
+    }
+
+    let out = Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .output();
+
+    let mut items = Vec::new();
+    if let Ok(out) = out {
+        if out.status.success() {
+            for line in String::from_utf8_lossy(&out.stdout).lines() {
+                if let Some((label, value)) = line.split_once('\t') {
+                    let value = value.trim();
+                    if !value.is_empty() {
+                        items.push(DetailItem {
+                            label: label.trim().to_string(),
+                            value: value.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+    items
+}
+
+#[cfg(not(target_os = "windows"))]
+fn advanced_sysfs(path: &str, bus: &str) -> Vec<DetailItem> {
     let mut out = Vec::new();
 
     match bus {
