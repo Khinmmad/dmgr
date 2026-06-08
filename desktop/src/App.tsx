@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { api } from "./api";
-import type { Capabilities, Device } from "./types";
+import type { Capabilities, Device, Platform } from "./types";
 import { NOISE_BUSES } from "./types";
 import Sidebar from "./components/Sidebar";
 import type { NavMode } from "./components/Sidebar";
@@ -37,6 +37,7 @@ export default function App() {
   const [navMode, setNavMode] = useState<NavMode>("bus");
   const [view, setView] = useState<View>("devices");
   const [caps, setCaps] = useState<Capabilities | null>(null);
+  const [platform, setPlatform] = useState<Platform | null>(null);
   const [toast, setToast] = useState<{ msg: string; kind: "ok" | "err" } | null>(null);
 
   const notify: Notify = useCallback((msg, kind = "ok") => {
@@ -58,6 +59,7 @@ export default function App() {
 
   useEffect(() => {
     api.capabilities().then(setCaps).catch(() => {});
+    api.platformInfo().then(setPlatform).catch(() => {});
     refresh();
   }, [refresh]);
 
@@ -181,6 +183,24 @@ export default function App() {
         {view === "audio" && <AudioPanel notify={notify} />}
         {view === "bluetooth" && <BluetoothPanel notify={notify} />}
       </main>
+
+      {platform && (
+        <footer className="statusbar">
+          <span title={platform.distro_name}>
+            🐧 {platform.distro_id} · {platform.session}
+            {platform.gpu_nvidia ? " · nvidia" : ""}
+          </span>
+          <span>· 🔊 {platform.audio_backend}</span>
+          {!platform.can_elevate && (
+            <span
+              className="warn"
+              title={`Privileged actions unavailable. Install dmgr-polkit-helper + polkit. ${platform.package_hint}`}
+            >
+              · ⚠ no root
+            </span>
+          )}
+        </footer>
+      )}
 
       {toast && <div className={`toast ${toast.kind}`}>{toast.msg}</div>}
     </div>

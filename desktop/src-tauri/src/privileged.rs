@@ -38,13 +38,28 @@ fn helper_path() -> Option<PathBuf> {
 }
 
 fn is_root() -> bool {
-    // SAFETY: getuid is always safe.
+    // SAFETY: geteuid is always safe.
     unsafe { libc_geteuid() == 0 }
 }
 
 extern "C" {
     #[link_name = "geteuid"]
     fn libc_geteuid() -> u32;
+}
+
+fn has_pkexec() -> bool {
+    Command::new("sh")
+        .arg("-c")
+        .arg("command -v pkexec")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// Whether privileged operations can be performed at all (already root, or a
+/// usable helper + pkexec are present). Surfaced to the UI so it can warn early.
+pub fn can_elevate() -> bool {
+    is_root() || (helper_path().is_some() && has_pkexec())
 }
 
 /// Run a helper subcommand. `args` are the helper arguments (e.g. `["unbind", path]`).
@@ -54,8 +69,19 @@ pub fn run_privileged(args: &[&str]) -> Result<(), String> {
         return run_direct(args);
     }
 
-    let helper = helper_path()
-        .ok_or_else(|| "dmgr-polkit-helper not found (install dmgr or run `cargo build`)".to_string())?;
+    let helper = helper_path().ok_or_else(|| {
+        "Privileged helper 'dmgr-polkit-helper' not found. Install dmgr (or `cargo build` it), \
+         then retry. Alternatively, launch dmgr as root."
+            .to_string()
+    })?;
+
+    if !has_pkexec() {
+        return Err(
+            "'pkexec' (polkit) not found, so this action can't request root from the GUI. \
+             Install polkit, or run dmgr from a terminal as root."
+                .to_string(),
+        );
+    }
 
     let status = Command::new("pkexec")
         .arg(helper)
@@ -67,7 +93,8 @@ pub fn run_privileged(args: &[&str]) -> Result<(), String> {
         Ok(())
     } else {
         match status.code() {
-            Some(126) | Some(127) => Err("Authorization cancelled or denied".to_string()),
+            Some(126) => Err("Authorization dialog dismissed".to_string()),
+            Some(127) => Err("Not authorized (polkit denied the action)".to_string()),
             Some(c) => Err(format!("Privileged operation failed (exit {c})")),
             None => Err("Privileged operation terminated by signal".to_string()),
         }

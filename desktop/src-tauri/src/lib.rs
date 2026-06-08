@@ -3,18 +3,15 @@ mod backend;
 mod bluetooth;
 mod commands;
 mod hotplug;
+mod platform;
 mod privileged;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = env_logger::try_init();
 
-    // WebKitGTK renders a blank window under Nvidia + Wayland with the DMABUF
-    // renderer. Disable it unless the user has set their own preference.
-    #[cfg(target_os = "linux")]
-    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
-        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-    }
+    // Apply GPU/session-specific rendering workarounds (Nvidia+Wayland only).
+    platform::apply_webkit_workarounds();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -43,6 +40,7 @@ pub fn run() {
             commands::bt_set_power,
             commands::bt_set_trust,
             commands::capabilities,
+            commands::platform_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running dmgr-desktop");

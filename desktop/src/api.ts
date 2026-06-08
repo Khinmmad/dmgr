@@ -5,6 +5,7 @@ import type {
   BtState,
   Capabilities,
   Device,
+  Platform,
 } from "./types";
 
 export const api = {
@@ -44,4 +45,5 @@ export const api = {
 
   // meta
   capabilities: () => invoke<Capabilities>("capabilities"),
+  platformInfo: () => invoke<Platform>("platform_info"),
 };

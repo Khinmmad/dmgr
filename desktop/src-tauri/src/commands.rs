@@ -1,7 +1,7 @@
 //! Tauri command surface — everything the React frontend can invoke.
 
 use crate::backend::Backend;
-use crate::{audio, bluetooth};
+use crate::{audio, bluetooth, platform};
 use dmgr_core::device::Device;
 use serde::Serialize;
 use tauri::State;
@@ -9,8 +9,13 @@ use tauri::State;
 #[derive(Serialize)]
 pub struct Capabilities {
     pub audio: bool,
+    pub audio_backend: String,
     pub bluetooth: bool,
     pub root: bool,
+}
+
+fn audio_or_err() -> Result<Box<dyn audio::AudioBackend>, String> {
+    audio::detect().ok_or_else(|| "no audio backend (pactl/wpctl/alsa) available".to_string())
 }
 
 // ── Devices (routed through the OS-abstracted backend) ───────────────────────
@@ -76,32 +81,32 @@ pub fn set_device_enabled(
 
 #[tauri::command]
 pub fn audio_outputs() -> Vec<audio::AudioDevice> {
-    audio::list_sinks()
+    audio::detect().map(|b| b.outputs()).unwrap_or_default()
 }
 
 #[tauri::command]
 pub fn audio_inputs() -> Vec<audio::AudioDevice> {
-    audio::list_sources()
+    audio::detect().map(|b| b.inputs()).unwrap_or_default()
 }
 
 #[tauri::command]
 pub fn audio_set_default_output(name: String) -> Result<(), String> {
-    audio::set_default_sink(&name)
+    audio_or_err()?.set_default_output(&name)
 }
 
 #[tauri::command]
 pub fn audio_set_default_input(name: String) -> Result<(), String> {
-    audio::set_default_source(&name)
+    audio_or_err()?.set_default_input(&name)
 }
 
 #[tauri::command]
 pub fn audio_set_volume(name: String, percent: u32) -> Result<(), String> {
-    audio::set_sink_volume(&name, percent)
+    audio_or_err()?.set_volume(&name, percent)
 }
 
 #[tauri::command]
 pub fn audio_set_mute(name: String, muted: bool) -> Result<(), String> {
-    audio::set_sink_mute(&name, muted)
+    audio_or_err()?.set_mute(&name, muted)
 }
 
 // ── Bluetooth ────────────────────────────────────────────────────────────────
@@ -137,7 +142,13 @@ pub fn bt_set_trust(mac: String, trust: bool) -> Result<(), String> {
 pub fn capabilities() -> Capabilities {
     Capabilities {
         audio: audio::is_available(),
+        audio_backend: audio::backend_name().to_string(),
         bluetooth: bluetooth::is_available(),
         root: std::env::var("USER").map(|u| u == "root").unwrap_or(false),
     }
+}
+
+#[tauri::command]
+pub fn platform_info() -> platform::Platform {
+    platform::detect()
 }

@@ -423,3 +423,29 @@ button {
   padding: 40px;
   text-align: center;
 }
+
+.statusbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 260px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--bg-alt);
+  border-top: 1px solid var(--surface);
+  border-right: 1px solid var(--surface);
+  font-size: 11px;
+  color: var(--overlay);
+  z-index: 20;
+}
+.statusbar .warn {
+  color: var(--yellow);
+  font-weight: 600;
+}
+
+/* keep sidebar content clear of the fixed status bar */
+.sidebar {
+  padding-bottom: 34px;
+}

@@ -53,16 +53,17 @@ monitor started" confirmed, root `cargo test` unaffected.
 
 ---
 
-## Sprint 2 — Universal Linux compatibility
+## Sprint 2 — Universal Linux compatibility ✅ DONE (2026-06-07)
 
-- **Audio backends:** abstract audio behind a trait; autodetect and use the first available of
-  `pactl` → `wpctl` (WirePlumber) → PulseAudio → ALSA (`amixer`/`aplay -l`). Today `audio.rs` hard-codes `pactl`.
-- **Permissions without polkit:** when `dmgr-polkit-helper` is missing, fall back gracefully — surface a clear
-  message or offer a `sudo` terminal path instead of failing. (`privileged.rs`.)
-- **Multi-distro / no systemd:** don't assume Arch/systemd; detect distro (`/etc/os-release`), use generic paths,
-  don't hard-code package names. Show distro-aware install hints when a tool is absent.
-- **X11 + Wayland / multi-GPU:** generalize the Nvidia WebKit DMABUF flag (detect GPU vendor / session type);
-  verify rendering on X11 and on Intel/AMD.
+- **Audio backends — ✅** `desktop/src-tauri/src/audio/` is now a module with an `AudioBackend` trait and
+  `pactl` / `wpctl` (WirePlumber) / `alsa` (read-only) impls; `detect()` picks the first available (cached).
+  `commands.rs` routes through it; `capabilities`/`platform_info` report the active backend.
+- **Permissions without polkit — ✅** `privileged.rs` gained `can_elevate()` and pkexec detection with clear,
+  actionable error messages; the UI shows a "⚠ no root" status chip with a distro-aware install hint.
+- **Multi-distro / no systemd — ✅** `platform.rs` reads `/etc/os-release` (id + pretty name) and maps a
+  `package_hint` per distro family (pacman/apt/dnf/zypper/xbps/apk/emerge/nix). Surfaced in the status bar.
+- **X11 + Wayland / multi-GPU — ✅** the WebKit DMABUF flag now applies **only** on Nvidia + Wayland
+  (`platform::apply_webkit_workarounds`), leaving Intel/AMD and X11 on the faster default path.
 
 ## Sprint 3 — Depth
 

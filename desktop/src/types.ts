@@ -78,8 +78,20 @@ export interface BtState {
 
 export interface Capabilities {
   audio: boolean;
+  audio_backend: string; // pactl | wpctl | alsa | none
   bluetooth: boolean;
   root: boolean;
+}
+
+export interface Platform {
+  os: string;
+  distro_id: string;
+  distro_name: string;
+  session: string; // wayland | x11 | unknown
+  gpu_nvidia: boolean;
+  audio_backend: string;
+  can_elevate: boolean;
+  package_hint: string;
 }
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
