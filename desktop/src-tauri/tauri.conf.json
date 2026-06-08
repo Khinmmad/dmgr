@@ -39,10 +39,18 @@
     ],
     "linux": {
       "deb": {
-        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0", "policykit-1"]
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0", "policykit-1"],
+        "files": {
+          "/usr/bin/dmgr-polkit-helper": "../../target/release/dmgr-polkit-helper",
+          "/usr/share/polkit-1/actions/org.dmgr.DeviceManager.policy": "../../resources/org.dmgr.DeviceManager.policy"
+        }
       },
       "rpm": {
-        "depends": ["webkit2gtk4.1", "gtk3", "polkit"]
+        "depends": ["webkit2gtk4.1", "gtk3", "polkit"],
+        "files": {
+          "/usr/bin/dmgr-polkit-helper": "../../target/release/dmgr-polkit-helper",
+          "/usr/share/polkit-1/actions/org.dmgr.DeviceManager.policy": "../../resources/org.dmgr.DeviceManager.policy"
+        }
       }
     }
   }

@@ -45,16 +45,18 @@ Installs the GUI binary, `dmgr-polkit-helper`, the polkit policy, `.desktop` and
 
 **.deb / .rpm (other distros):**
 ```bash
+# Build the privileged helper first — the bundles include it.
+cargo build --release -p dmgr-polkit-helper
 cd desktop
 npm run tauri build -- --bundles deb,rpm
 # → src-tauri/target/release/bundle/{deb,rpm}/
 ```
-Tauri's deb/rpm bundlers are pure-Rust (no `dpkg-deb`/`rpmbuild` required).
+Tauri's deb/rpm bundlers are pure-Rust (no `dpkg-deb`/`rpmbuild` required). The
+bundles ship the GUI **plus** `dmgr-polkit-helper` and the polkit policy (via
+`bundle.linux.{deb,rpm}.files`), so privileged actions work out of the box.
 
-> ⚠ The deb/rpm bundles ship only the GUI binary. Privileged actions need
-> `dmgr-polkit-helper` + the polkit policy installed separately — use the AUR
-> package for the complete experience, or build the helper
-> (`cargo build --release -p dmgr-polkit-helper`) and install it to `/usr/bin`.
+> Note: building the helper first is required — `tauri build` references
+> `target/release/dmgr-polkit-helper`. The AUR package handles this automatically.
 
 **Windows (experimental, unverified):**
 ```powershell

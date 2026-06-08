@@ -83,10 +83,10 @@ monitor started" confirmed, root `cargo test` unaffected.
   `npm run tauri build -- --bundles deb,rpm` produces both (Tauri's pure-Rust bundlers — no dpkg/rpmbuild
   needed). Verified: `dmgr-desktop_2.0.0_amd64.deb` + `dmgr-desktop-2.0.0-1.x86_64.rpm` build and contain the
   binary, icon and desktop entry. Also `resources/dmgr-desktop.desktop` added.
-- **Known limitation / follow-up:** the deb/rpm bundle ships only the GUI binary — the privileged helper and
-  polkit policy are NOT included, so root actions need `dmgr-polkit-helper` installed separately (the AUR
-  package includes it). To make deb/rpm self-sufficient, pre-build the helper and add it via
-  `bundle.linux.{deb,rpm}.files`.
+- **deb/rpm now self-sufficient — ✅ (follow-up done)** `bundle.linux.{deb,rpm}.files` bundles
+  `dmgr-polkit-helper` (from `target/release/`) and the polkit policy, so root actions work out of the box.
+  Prereq: build the helper before `tauri build`. Verified: the .deb contains `usr/bin/dmgr-desktop`,
+  `usr/bin/dmgr-polkit-helper` and the polkit policy.
 
 ## Sprint 5 — Windows ⚠ WRITTEN, UNVERIFIED (2026-06-07)
 
