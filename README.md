@@ -1,173 +1,110 @@
-# dmgr — Gestor de Dispositivos para Arch Linux
+<div align="center">
 
-Administrador de dispositivos estilo Windows para Arch Linux. Detecta dispositivos USB, PCIe, audio, input, block, GPU, red, etc. Permite ver propiedades, bind/unbind drivers y editar atributos vía sysfs.
+# dmgr
 
-## Arquitectura
+**A modern, Windows-style Device Manager for Linux.**
 
-```
-┌──────────┐     DBus      ┌─────────────┐     QML      ┌──────────────────┐
-│ dmgr-core │◄────────────►│ dmgr-daemon │◄────────────►│ dmgr-panel (UI)  │
-│  (Rust)   │              │   (Rust)    │              │ dmgr-standalone  │
-└──────────┘              └─────────────┘              │  (QML/QtQuick)   │
-                                │                       └──────────────────┘
-                                │ DBus
-                    ┌───────────┴───────────┐
-                    │      dmgr (CLI)       │
-                    │       (Python)        │
-                    └───────────────────────┘
-```
+Browse and manage your hardware — devices, drivers, audio outputs, Bluetooth and kernel modules — from a clean desktop UI.
 
-- **Rust**: Core engine (sysfs scanner, udev monitor, driver control)
-- **QML/QtQuick**: Interfaz gráfica (QuickShell panel + standalone app)
-- **Python**: CLI con `dasbus` + `rich`
-- **DBus**: `org.dmgr.DeviceManager` — session bus, todos los frontends se comunican vía este protocolo
+[![CI](https://github.com/Khinmmad/dmgr/actions/workflows/ci.yml/badge.svg)](https://github.com/Khinmmad/dmgr/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Khinmmad/dmgr)](https://github.com/Khinmmad/dmgr/releases/latest)
+[![AUR](https://img.shields.io/aur/version/dmgr-desktop)](https://aur.archlinux.org/packages/dmgr-desktop)
+[![License](https://img.shields.io/github/license/Khinmmad/dmgr)](LICENSE)
 
-## Requisitos
+![dmgr screenshot](assets/screenshot.png)
 
+</div>
+
+## Features
+
+- 🔌 **Device browser** — every device grouped by bus (USB, PCIe, audio, input, storage, GPU, network…). Irrelevant kernel noise is hidden by default, with a *Show all* toggle and a parent/child **tree view**.
+- ⚙️ **Driver actions, Windows-style** — enable/disable a device, install/change a driver (bind), uninstall a driver (unbind).
+- 🔬 **Properties** — view every sysfs property; edit the ones the kernel allows. An *Advanced details* panel surfaces PCIe link speed/width, IRQs, USB speeds and power-management state.
+- 🔊 **Audio** — a dedicated panel that lists all connected output devices, highlights the active one, and switches between them in one click, with volume & mute. Works with **PipeWire** (`pactl`/`wpctl`), **PulseAudio**, or **ALSA**.
+- 🔵 **Bluetooth** — connect/disconnect/trust paired devices and toggle the adapter.
+- 🧩 **Kernel modules** — list loaded modules, view `modinfo`, and load/unload via `modprobe`.
+- ♻️ **Live hotplug** — the UI refreshes itself when you plug or unplug a device (udev).
+- 🌍 **Adapts to your system** — detects your distro, session (X11/Wayland) and GPU, and shows distro-aware hints.
+
+## Install
+
+### Arch Linux (AUR)
 ```bash
-# Dependencias de sistema (Arch Linux)
-sudo pacman -S rust cargo qt6-declarative qt6-base polkit systemd python python-dasbus python-rich
-
-# Para QuickShell (si usas ese shell)
-yay -S quickshell-git
+paru -S dmgr-desktop      # or: yay -S dmgr-desktop
 ```
 
-## Instalación
+### Other distros
+Grab a prebuilt bundle from the [latest release](https://github.com/Khinmmad/dmgr/releases/latest):
+
+- `.deb` (Debian/Ubuntu) — includes the polkit helper, so privileged actions work out of the box
+- `.rpm` (Fedora/openSUSE)
+- `.AppImage` (portable, any distro)
+
+> Privileged actions (enable/disable, bind/unbind, edit properties, load modules) are performed through **polkit** (`pkexec`).
+
+## How it works
+
+```
+┌──────────────────────────┐        ┌─────────────────────────┐
+│  React + TypeScript (UI)  │  IPC   │   Tauri (Rust) backend  │
+│   src/  (Vite)            │◄──────►│   desktop/src-tauri/    │
+└──────────────────────────┘        └────────────┬────────────┘
+                                                  │ reuses
+                                     ┌────────────┴────────────┐
+                                     │  dmgr-core (Rust lib)   │
+                                     │  sysfs · udev · control │
+                                     └────────────┬────────────┘
+                                                  │ pkexec
+                                     ┌────────────┴────────────┐
+                                     │  dmgr-polkit-helper     │
+                                     │  (privileged ops)       │
+                                     └─────────────────────────┘
+```
+
+The device logic lives in **`dmgr-core`** (Rust: sysfs scanning, udev monitoring, driver control). The desktop app is **Tauri v2 + React/TypeScript**, with an OS-abstracted backend (`DeviceBackend` trait) so other platforms can be plugged in. A small **egui** GUI (`dmgr-gui`) is kept as a lightweight native fallback.
+
+## Build from source
+
+Requires Rust, Node 20+, and the WebKitGTK/GTK dev libraries (e.g. on Arch: `webkit2gtk-4.1 gtk3`).
 
 ```bash
 git clone https://github.com/Khinmmad/dmgr.git
 cd dmgr
 
-# Build release
-cargo build --release
+# Privileged helper (the deb/rpm bundles embed it)
+cargo build --release -p dmgr-polkit-helper
 
-# Instalar (requiere sudo para copiar a /usr)
-sudo bash scripts/install.sh
-
-# Instalar CLI Python
-pip install --user ./cli
+# Desktop app (frontend + Tauri backend)
+cd desktop
+npm install
+npm run tauri dev        # hot-reload dev window
+# or a release binary:
+npm run build && cargo build --release --manifest-path src-tauri/Cargo.toml
+./src-tauri/target/release/dmgr-desktop
 ```
 
-## Configuración
+See [`desktop/README.md`](desktop/README.md) for packaging (deb/rpm/AppImage) and Nvidia/Wayland notes, and [`ROADMAP.md`](ROADMAP.md) for what's planned next.
 
-### 1. Iniciar el daemon
-
-```bash
-# Habilitar e iniciar el daemon como servicio de usuario
-systemctl --user enable --now dmgr-daemon
-
-# Verificar que está corriendo
-systemctl --user status dmgr-daemon
-
-# Logs
-journalctl --user -u dmgr-daemon -f
-```
-
-### 2. Verificar DBus
-
-```bash
-# Listar métodos disponibles
-busctl --user introspect org.dmgr.DeviceManager /org/dmgr/DeviceManager
-
-# Llamar al método GetAllDevices
-busctl --user call org.dmgr.DeviceManager /org/dmgr/DeviceManager \
-  org.dmgr.DeviceManager GetAllDevices
-```
-
-### 3. Lanzar la UI
-
-```bash
-# App standalone QtQuick
-qml6 /usr/share/dmgr/qml/dmgr-standalone.qml
-
-# O desde el lanzador de aplicaciones (dmgr.desktop)
-```
-
-### 4. Usar la CLI
-
-```bash
-dmgr list                          # Listar todos los dispositivos
-dmgr list --bus usb                # Solo USB
-dmgr list --bus pci                # Solo PCIe
-dmgr info pci-0000:00:14.0        # Detalles de un dispositivo
-dmgr search Intel                  # Buscar dispositivos
-dmgr drivers pci-0000:00:14.0     # Ver drivers disponibles
-dmgr watch                         # Monitoreo en vivo (polling)
-dmgr refresh                       # Re-escanear
-
-# Operaciones privilegiadas (requieren polkit)
-dmgr bind pci-0000:00:14.0 xhci_hcd   # Vincular driver
-dmgr unbind pci-0000:00:14.0          # Desvincular driver
-dmgr property get pci-0000:00:14.0 power/control
-dmgr property set pci-0000:00:14.0 power/control on
-```
-
-### 5. Integración QuickShell
-
-El módulo se instala automáticamente en `/usr/share/quickshell/modules/dmgr/`. Si no aparece en tu shell:
-
-```bash
-# Verificar instalación
-ls /usr/share/quickshell/modules/dmgr/
-
-# Si tu QuickShell usa otra ruta, copiar manualmente:
-cp -r /usr/share/quickshell/modules/dmgr ~/.config/quickshell/modules/
-```
-
-## API DBus
-
-**Bus**: Session  
-**Nombre**: `org.dmgr.DeviceManager`  
-**Path**: `/org/dmgr/DeviceManager`
-
-| Método | Args | Retorno |
-|---|---|---|
-| `GetAllDevices` | — | `s` (JSON) |
-| `GetDevice` | `s` dev_id | `s` (JSON) |
-| `GetDevicesByBus` | `s` bus | `s` (JSON) |
-| `GetDevicesByFilter` | `s` query | `s` (JSON) |
-| `GetAvailableDrivers` | `s` dev_id | `as` |
-| `BindDriver` | `s` dev_id, `s` driver | `b` |
-| `UnbindDriver` | `s` dev_id | `b` |
-| `SetProperty` | `s` dev_id, `s` attr, `s` val | `b` |
-| `Refresh` | — | `u` |
-
-**Señales**: `DeviceAdded`, `DeviceRemoved`, `DeviceChanged`, `ScanFinished`
-
-## Desinstalación
-
-```bash
-# Detener daemon
-systemctl --user disable --now dmgr-daemon
-
-# Desinstalar binarios y recursos
-sudo bash scripts/uninstall.sh
-
-# Desinstalar CLI
-pip uninstall dmgr
-```
-
-## Estructura del proyecto
+## Project structure
 
 ```
 dmgr/
 ├── crates/
-│   ├── dmgr-core/          # Librería Rust: scanner sysfs, udev, control drivers
-│   ├── dmgr-daemon/        # Servicio DBus (zbus)
-│   └── dmgr-polkit-helper/ # Helper privilegiado (pkexec)
-├── qml/                    # Interfaz QML (QuickShell + standalone)
-│   ├── components/         # DeviceTree, DeviceDetail, DeviceControls...
-│   ├── dbus/               # Proxy DBus para QML
-│   ├── theme/              # Tema oscuro
-│   └── icons/              # SVG por tipo de bus
-├── cli/                    # CLI Python (dasbus + rich)
-├── resources/              # .desktop, .service, polkit policy
-├── scripts/                # install.sh / uninstall.sh
-├── packaging/              # PKGBUILD para AUR
-├── PROJECT.md              # Especificación completa
-└── PROGRESS.md             # Log de desarrollo
+│   ├── dmgr-core/           # Rust library: sysfs scanner, udev, driver/property control
+│   ├── dmgr-gui/            # egui native GUI (lightweight fallback)
+│   └── dmgr-polkit-helper/  # privileged helper invoked via pkexec
+├── desktop/                 # Tauri v2 + React/TS app (primary UI)
+│   ├── src/                 #   React frontend
+│   └── src-tauri/           #   Rust backend (commands, audio, bluetooth, kernel…)
+├── packaging/               # AUR PKGBUILDs
+├── resources/               # .desktop entries + polkit policy
+└── .github/workflows/       # CI (Linux + Windows) and release automation
 ```
 
-## Licencia
+## Contributing
 
-MIT
+Issues and PRs are welcome — especially edge cases in device detection on different hardware. The Linux backend is verified in CI (Linux + Windows builds, unit tests for the parsers).
+
+## License
+
+[MIT](LICENSE)
