@@ -1,6 +1,6 @@
 # Maintainer: isra <israelzermeno82@gmail.com>
 pkgname=dmgr
-pkgver=2.0.0
+pkgver=2.1.0
 pkgrel=1
 pkgdesc="Device Manager for Arch Linux — egui native GUI with audio switching"
 arch=('x86_64')
