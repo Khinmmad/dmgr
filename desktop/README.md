@@ -35,6 +35,27 @@ cargo build --release --manifest-path src-tauri/Cargo.toml
 
 The frontend is embedded in the binary, so it runs standalone.
 
+## Packaging
+
+**Arch (AUR) — full install (recommended):**
+```bash
+cd packaging/dmgr-desktop && makepkg -si
+```
+Installs the GUI binary, `dmgr-polkit-helper`, the polkit policy, `.desktop` and icons.
+
+**.deb / .rpm (other distros):**
+```bash
+cd desktop
+npm run tauri build -- --bundles deb,rpm
+# → src-tauri/target/release/bundle/{deb,rpm}/
+```
+Tauri's deb/rpm bundlers are pure-Rust (no `dpkg-deb`/`rpmbuild` required).
+
+> ⚠ The deb/rpm bundles ship only the GUI binary. Privileged actions need
+> `dmgr-polkit-helper` + the polkit policy installed separately — use the AUR
+> package for the complete experience, or build the helper
+> (`cargo build --release -p dmgr-polkit-helper`) and install it to `/usr/bin`.
+
 ## Notes
 
 - On **Nvidia + Wayland**, WebKitGTK is started with

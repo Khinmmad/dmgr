@@ -75,11 +75,18 @@ monitor started" confirmed, root `cargo test` unaffected.
   `modprobe` through `privileged::run_pkexec` (new generic pkexec runner). New **Modules** tab
   (`ModulesPanel.tsx`): search, expand for modinfo, load by name, unload (with in-use confirm).
 
-## Sprint 4 — Linux packaging
+## Sprint 4 — Linux packaging ✅ DONE (2026-06-07)
 
-- **AUR:** PKGBUILD for `dmgr-desktop` (build frontend + cargo, install binary + `.desktop` + icon + polkit policy).
-  Mirror the pattern in existing `packaging/PKGBUILD`.
-- **.deb / .rpm:** use Tauri's bundler (`tauri build` → deb/rpm targets) once `tauri.conf.json` bundle is finalized.
+- **AUR — ✅** `packaging/dmgr-desktop/PKGBUILD` builds the frontend + Tauri backend + the polkit helper, and
+  installs the binary, `dmgr-polkit-helper`, polkit policy, `.desktop` and icons. Full-featured install.
+- **.deb / .rpm — ✅** `tauri.conf.json` bundle is configured (category, descriptions, deb/rpm depends).
+  `npm run tauri build -- --bundles deb,rpm` produces both (Tauri's pure-Rust bundlers — no dpkg/rpmbuild
+  needed). Verified: `dmgr-desktop_2.0.0_amd64.deb` + `dmgr-desktop-2.0.0-1.x86_64.rpm` build and contain the
+  binary, icon and desktop entry. Also `resources/dmgr-desktop.desktop` added.
+- **Known limitation / follow-up:** the deb/rpm bundle ships only the GUI binary — the privileged helper and
+  polkit policy are NOT included, so root actions need `dmgr-polkit-helper` installed separately (the AUR
+  package includes it). To make deb/rpm self-sufficient, pre-build the helper and add it via
+  `bundle.linux.{deb,rpm}.files`.
 
 ## Sprint 5 — Windows (last; depends on Sprint 1a)
 
