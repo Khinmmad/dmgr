@@ -101,3 +101,21 @@ pub fn apply_webkit_workarounds() {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::package_hint;
+
+    #[test]
+    fn package_hints_per_distro_family() {
+        assert!(package_hint("arch").contains("pacman"));
+        assert!(package_hint("endeavouros").contains("pacman"));
+        assert!(package_hint("ubuntu").contains("apt"));
+        assert!(package_hint("fedora").contains("dnf"));
+        assert!(package_hint("opensuse-tumbleweed").contains("zypper"));
+        assert!(package_hint("void").contains("xbps"));
+        assert!(package_hint("nixos").contains("configuration.nix"));
+        // unknown distro → generic guidance
+        assert!(package_hint("someunknowndistro").contains("package manager"));
+    }
+}

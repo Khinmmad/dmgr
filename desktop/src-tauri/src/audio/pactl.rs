@@ -115,3 +115,49 @@ fn parse(text: &str, kind: &str, default_name: &str) -> Vec<AudioDevice> {
     flush(&mut cur, &mut out);
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SAMPLE: &str = "\
+Sink #49
+\tState: RUNNING
+\tName: alsa_output.pci-0000_0c_00.4.analog-stereo
+\tDescription: Family 17h/19h HD Audio Analog Stereo
+\tMute: no
+\tVolume: front-left: 42000 /  65% / -9.33 dB,   front-right: 42000 /  65%
+Sink #52
+\tState: SUSPENDED
+\tName: alsa_output.pci-0000_01_00.1.hdmi-stereo-extra3
+\tDescription: GB206 HDMI Digital Stereo
+\tMute: yes
+\tVolume: front-left: 26214 /  40% / -23.65 dB
+";
+
+    #[test]
+    fn parses_two_sinks_with_default_and_volume() {
+        let default = "alsa_output.pci-0000_0c_00.4.analog-stereo";
+        let sinks = parse(SAMPLE, "Sink", default);
+        assert_eq!(sinks.len(), 2);
+
+        let analog = &sinks[0];
+        assert!(analog.is_default);
+        assert_eq!(analog.state, "RUNNING");
+        assert!(!analog.muted);
+        assert_eq!(analog.volume, Some(65));
+        assert_eq!(analog.kind, "Builtin");
+
+        let hdmi = &sinks[1];
+        assert!(!hdmi.is_default);
+        assert!(hdmi.muted);
+        assert_eq!(hdmi.volume, Some(40));
+        assert_eq!(hdmi.kind, "Hdmi");
+        assert_eq!(hdmi.description, "GB206 HDMI Digital Stereo");
+    }
+
+    #[test]
+    fn empty_input_yields_nothing() {
+        assert!(parse("", "Sink", "").is_empty());
+    }
+}

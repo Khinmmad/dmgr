@@ -49,7 +49,10 @@ fn list(tool: &str) -> Vec<AudioDevice> {
         Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).into_owned(),
         _ => return Vec::new(),
     };
+    parse_aplay(&out)
+}
 
+fn parse_aplay(out: &str) -> Vec<AudioDevice> {
     let mut devices = Vec::new();
     for line in out.lines() {
         // "card 0: PCH [HDA Intel PCH], device 0: ALC892 Analog [ALC892 Analog]"
@@ -84,4 +87,30 @@ fn field_num(line: &str, key: &str) -> Option<u32> {
     let rest = &line[line.find(key)? + key.len()..];
     let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
     digits.parse().ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_aplay_output() {
+        let sample = "\
+**** List of PLAYBACK Hardware Devices ****
+card 0: PCH [HDA Intel PCH], device 0: ALC892 Analog [ALC892 Analog]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+card 1: NVidia [HDA NVidia], device 3: HDMI 0 [HDMI 0]
+  Subdevices: 1/1
+";
+        let devs = parse_aplay(sample);
+        assert_eq!(devs.len(), 2);
+
+        assert_eq!(devs[0].name, "hw:0,0");
+        assert!(devs[0].is_default);
+        assert_eq!(devs[0].description, "PCH [HDA Intel PCH]");
+
+        assert_eq!(devs[1].name, "hw:1,3");
+        assert!(!devs[1].is_default);
+    }
 }

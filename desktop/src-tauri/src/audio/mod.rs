@@ -97,3 +97,17 @@ pub(crate) fn detect_kind(name: &str) -> &'static str {
         "Builtin"
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::detect_kind;
+
+    #[test]
+    fn classifies_device_kinds() {
+        assert_eq!(detect_kind("bluez_output.AA_BB_CC.1"), "Bluetooth");
+        assert_eq!(detect_kind("alsa_output.pci-0000_01.hdmi-stereo"), "Hdmi");
+        assert_eq!(detect_kind("alsa_output.usb-Generic_USB"), "Usb");
+        assert_eq!(detect_kind("alsa_output.pci-0000_0c.analog-stereo"), "Builtin");
+        assert_eq!(detect_kind("alsa_output.virtual-sink"), "Virtual");
+    }
+}

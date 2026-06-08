@@ -25,9 +25,14 @@ pub struct ModuleInfo {
     pub params: Vec<String>,
 }
 
-/// Parse `/proc/modules`: "name size refcount used_by state address".
+/// Read and parse `/proc/modules`.
 pub fn list() -> Vec<KernelModule> {
     let text = std::fs::read_to_string("/proc/modules").unwrap_or_default();
+    parse_proc_modules(&text)
+}
+
+/// Parse `/proc/modules`: "name size refcount used_by state address".
+fn parse_proc_modules(text: &str) -> Vec<KernelModule> {
     let mut mods = Vec::new();
     for line in text.lines() {
         let f: Vec<&str> = line.split_whitespace().collect();
@@ -107,4 +112,39 @@ fn validate(name: &str) -> Result<(), String> {
 fn run_modinfo(name: &str) -> Option<String> {
     let out = std::process::Command::new("modinfo").arg(name).output().ok()?;
     out.status.success().then(|| String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_proc_modules() {
+        let sample = "\
+nvidia_drm 122880 12 - Live 0x0000000000000000
+nvidia_modeset 1572864 6 nvidia_drm, Live 0x0000000000000000
+btrfs 1830912 1 - Live 0x0000000000000000
+videodev 376832 4 uvcvideo,videobuf2_v4l2 Live 0x0000000000000000
+";
+        let mods = parse_proc_modules(sample);
+        assert_eq!(mods.len(), 4);
+
+        // sorted by name → btrfs first
+        assert_eq!(mods[0].name, "btrfs");
+        assert_eq!(mods[0].refcount, 1);
+        assert!(mods[0].used_by.is_empty());
+
+        let drm = mods.iter().find(|m| m.name == "nvidia_drm").unwrap();
+        assert_eq!(drm.refcount, 12);
+        assert_eq!(drm.size_kb, 122880 / 1024);
+        assert_eq!(drm.state, "Live");
+
+        let videodev = mods.iter().find(|m| m.name == "videodev").unwrap();
+        assert_eq!(videodev.used_by, vec!["uvcvideo", "videobuf2_v4l2"]);
+    }
+
+    #[test]
+    fn ignores_malformed_lines() {
+        assert!(parse_proc_modules("garbage\n\nx y\n").is_empty());
+    }
 }

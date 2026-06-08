@@ -111,3 +111,45 @@ fn parse_line(line: &str) -> Option<AudioDevice> {
         kind: detect_kind(name).to_string(),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SAMPLE: &str = "\
+Audio
+ ├─ Sinks:
+ │  *   49. Built-in Audio Analog Stereo  [vol: 0.65]
+ │      52. GB206 HDMI Digital Stereo     [vol: 0.40 MUTED]
+ ├─ Sources:
+ │  *   51. Built-in Audio Analog Stereo  [vol: 1.00]
+ ├─ Filters:
+";
+
+    #[test]
+    fn parses_sinks_section_only() {
+        let sinks = section(SAMPLE, "Sinks");
+        assert_eq!(sinks.len(), 2);
+
+        let first = &sinks[0];
+        assert_eq!(first.name, "49"); // switching key = node id
+        assert!(first.is_default);
+        assert_eq!(first.volume, Some(65));
+        assert!(!first.muted);
+
+        let hdmi = &sinks[1];
+        assert_eq!(hdmi.name, "52");
+        assert!(!hdmi.is_default);
+        assert_eq!(hdmi.volume, Some(40));
+        assert!(hdmi.muted);
+        assert_eq!(hdmi.kind, "Hdmi");
+    }
+
+    #[test]
+    fn parses_sources_section() {
+        let sources = section(SAMPLE, "Sources");
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].name, "51");
+        assert!(sources[0].is_default);
+    }
+}
