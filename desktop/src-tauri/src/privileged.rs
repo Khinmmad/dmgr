@@ -37,14 +37,20 @@ fn helper_path() -> Option<PathBuf> {
     None
 }
 
+#[cfg(unix)]
 fn is_root() -> bool {
+    extern "C" {
+        #[link_name = "geteuid"]
+        fn geteuid() -> u32;
+    }
     // SAFETY: geteuid is always safe.
-    unsafe { libc_geteuid() == 0 }
+    unsafe { geteuid() == 0 }
 }
 
-extern "C" {
-    #[link_name = "geteuid"]
-    fn libc_geteuid() -> u32;
+#[cfg(not(unix))]
+fn is_root() -> bool {
+    // No euid concept on Windows; elevation is handled by the OS/UAC.
+    false
 }
 
 fn has_pkexec() -> bool {

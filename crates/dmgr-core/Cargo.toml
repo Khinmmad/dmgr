@@ -13,4 +13,8 @@ thiserror = "1"
 log = "0.4"
 env_logger = "0.11"
 libc = "0.2"
+
+# udev is Linux-only; gating it lets dmgr-core (and the Tauri desktop that
+# depends on it) compile on Windows/macOS.
+[target.'cfg(target_os = "linux")'.dependencies]
 udev = "0.9"
