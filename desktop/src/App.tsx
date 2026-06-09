@@ -9,8 +9,18 @@ import DeviceDetail from "./components/DeviceDetail";
 import AudioPanel from "./components/AudioPanel";
 import BluetoothPanel from "./components/BluetoothPanel";
 import ModulesPanel from "./components/ModulesPanel";
+import SettingsPanel from "./components/SettingsPanel";
+import type { Settings } from "./settings";
+import {
+  applySettings,
+  clearUiState,
+  loadSettings,
+  loadUiState,
+  saveSettings,
+  saveUiState,
+} from "./settings";
 
-export type View = "devices" | "audio" | "bluetooth" | "modules";
+export type View = "devices" | "audio" | "bluetooth" | "modules" | "settings";
 export type Notify = (msg: string, kind?: "ok" | "err") => void;
 
 // Internal kernel sub-nodes that aren't user-facing "devices":
@@ -30,13 +40,21 @@ export function isRelevant(d: Device): boolean {
 }
 
 export default function App() {
+  // One-time read of saved settings + (optionally) last UI state.
+  const initial = useMemo(() => {
+    const s = loadSettings();
+    const ui = s.remember ? loadUiState() : null;
+    return { settings: s, ui };
+  }, []);
+
+  const [settings, setSettings] = useState<Settings>(initial.settings);
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [showAll, setShowAll] = useState(false);
-  const [navMode, setNavMode] = useState<NavMode>("bus");
-  const [view, setView] = useState<View>("devices");
+  const [showAll, setShowAll] = useState(initial.ui?.showAll ?? false);
+  const [navMode, setNavMode] = useState<NavMode>((initial.ui?.navMode as NavMode) ?? "bus");
+  const [view, setView] = useState<View>((initial.ui?.view as View) ?? "devices");
   const [caps, setCaps] = useState<Capabilities | null>(null);
   const [platform, setPlatform] = useState<Platform | null>(null);
   const [toast, setToast] = useState<{ msg: string; kind: "ok" | "err" } | null>(null);
@@ -45,6 +63,28 @@ export default function App() {
     setToast({ msg, kind });
     window.setTimeout(() => setToast(null), 3200);
   }, []);
+
+  const updateSettings = useCallback((patch: Partial<Settings>) => {
+    setSettings((prev) => {
+      const next = { ...prev, ...patch };
+      saveSettings(next);
+      return next;
+    });
+  }, []);
+
+  // Apply theme / accent / density to the document.
+  useEffect(() => {
+    applySettings(settings);
+  }, [settings]);
+
+  // Persist (or forget) the last view & filters per the "remember" preference.
+  useEffect(() => {
+    if (settings.remember) {
+      saveUiState({ view: view === "settings" ? "devices" : view, showAll, navMode });
+    } else {
+      clearUiState();
+    }
+  }, [settings.remember, view, showAll, navMode]);
 
   const refresh = useCallback(async () => {
     try {
@@ -93,14 +133,19 @@ export default function App() {
 
   const selected = devices.find((d) => d.id === selectedId) ?? null;
 
-  // Audio, Bluetooth and kernel-module panels are Linux-only; hide them elsewhere
-  // (default to showing until platform is known, so Linux doesn't flicker).
-  const linuxOnly = !platform || platform.os === "linux";
+  const isLinux = platform?.os === "linux";
+  // Audio works everywhere (PipeWire/Pulse/ALSA on Linux, Core Audio on Windows).
+  // Bluetooth shows on Linux always, and on Windows only when an adapter exists.
+  // Kernel modules are a Linux-only concept.
+  const showBluetooth = isLinux || !!caps?.bluetooth;
+  const showModules = isLinux;
 
-  // If we're on a non-Linux OS and somehow on a hidden view, fall back to devices.
+  // If the current view became unavailable (e.g. on Windows), fall back to devices.
   useEffect(() => {
-    if (!linuxOnly && view !== "devices") setView("devices");
-  }, [linuxOnly, view]);
+    if (view === "audio" && caps && !caps.audio) setView("devices");
+    if (view === "bluetooth" && platform && !showBluetooth) setView("devices");
+    if (view === "modules" && platform && !showModules) setView("devices");
+  }, [view, caps, platform, showBluetooth, showModules]);
 
   return (
     <div className="app">
@@ -112,29 +157,29 @@ export default function App() {
         >
           Devices
         </button>
-        {linuxOnly && (
-          <>
-            <button
-              className={`iconbtn ${view === "audio" ? "active" : ""}`}
-              onClick={() => setView("audio")}
-              disabled={caps ? !caps.audio : false}
-              title={caps && !caps.audio ? "pactl not available" : ""}
-            >
-              🔊 Audio
-            </button>
-            <button
-              className={`iconbtn ${view === "bluetooth" ? "active" : ""}`}
-              onClick={() => setView("bluetooth")}
-            >
-              🔵 Bluetooth
-            </button>
-            <button
-              className={`iconbtn ${view === "modules" ? "active" : ""}`}
-              onClick={() => setView("modules")}
-            >
-              🧩 Modules
-            </button>
-          </>
+        <button
+          className={`iconbtn ${view === "audio" ? "active" : ""}`}
+          onClick={() => setView("audio")}
+          disabled={caps ? !caps.audio : false}
+          title={caps && !caps.audio ? "no audio backend available" : ""}
+        >
+          🔊 Audio
+        </button>
+        {showBluetooth && (
+          <button
+            className={`iconbtn ${view === "bluetooth" ? "active" : ""}`}
+            onClick={() => setView("bluetooth")}
+          >
+            🔵 Bluetooth
+          </button>
+        )}
+        {showModules && (
+          <button
+            className={`iconbtn ${view === "modules" ? "active" : ""}`}
+            onClick={() => setView("modules")}
+          >
+            🧩 Modules
+          </button>
         )}
         <span className="spacer" />
         {view === "devices" && (
@@ -169,8 +214,17 @@ export default function App() {
             </label>
           </>
         )}
-        <button className="iconbtn" onClick={refresh} title="Rescan">
-          ⟳
+        {view === "devices" && (
+          <button className="iconbtn" onClick={refresh} title="Rescan">
+            ⟳
+          </button>
+        )}
+        <button
+          className={`iconbtn ${view === "settings" ? "active" : ""}`}
+          onClick={() => setView("settings")}
+          title="Settings"
+        >
+          ⚙
         </button>
       </header>
 
@@ -206,8 +260,17 @@ export default function App() {
           ))}
 
         {view === "audio" && <AudioPanel notify={notify} />}
-        {view === "bluetooth" && <BluetoothPanel notify={notify} />}
+        {view === "bluetooth" && (
+          <BluetoothPanel notify={notify} os={platform?.os ?? "linux"} />
+        )}
         {view === "modules" && <ModulesPanel notify={notify} />}
+        {view === "settings" && (
+          <SettingsPanel
+            settings={settings}
+            onChange={updateSettings}
+            platformName={platform?.distro_name}
+          />
+        )}
       </main>
 
       {platform && (

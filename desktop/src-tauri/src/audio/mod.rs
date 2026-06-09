@@ -2,12 +2,19 @@
 //! Autodetects, in order: pactl (PipeWire-pulse / PulseAudio) → wpctl (WirePlumber)
 //! → ALSA (read-only fallback).
 
+#[cfg(not(target_os = "windows"))]
 mod alsa;
+#[cfg(not(target_os = "windows"))]
 mod pactl;
+#[cfg(target_os = "windows")]
+mod wasapi;
+#[cfg(not(target_os = "windows"))]
 mod wpctl;
 
 use serde::Serialize;
+#[cfg(not(target_os = "windows"))]
 use std::process::Command;
+#[cfg(not(target_os = "windows"))]
 use std::sync::OnceLock;
 
 #[derive(Clone, Debug, Serialize)]
@@ -34,6 +41,7 @@ pub trait AudioBackend: Send + Sync {
     fn set_mute(&self, id: &str, muted: bool) -> Result<(), String>;
 }
 
+#[cfg(not(target_os = "windows"))]
 #[derive(Clone, Copy)]
 enum Kind {
     Pactl,
@@ -41,6 +49,7 @@ enum Kind {
     Alsa,
 }
 
+#[cfg(not(target_os = "windows"))]
 fn has(cmd: &str) -> bool {
     Command::new(cmd)
         .arg("--version")
@@ -49,6 +58,7 @@ fn has(cmd: &str) -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(not(target_os = "windows"))]
 fn choice() -> Option<Kind> {
     static CHOICE: OnceLock<Option<Kind>> = OnceLock::new();
     *CHOICE.get_or_init(|| {
@@ -64,6 +74,7 @@ fn choice() -> Option<Kind> {
     })
 }
 
+#[cfg(not(target_os = "windows"))]
 pub fn detect() -> Option<Box<dyn AudioBackend>> {
     Some(match choice()? {
         Kind::Pactl => Box::new(pactl::Pactl),
@@ -72,8 +83,14 @@ pub fn detect() -> Option<Box<dyn AudioBackend>> {
     })
 }
 
+/// Windows always has Core Audio (WASAPI).
+#[cfg(target_os = "windows")]
+pub fn detect() -> Option<Box<dyn AudioBackend>> {
+    Some(Box::new(wasapi::Wasapi))
+}
+
 pub fn is_available() -> bool {
-    choice().is_some()
+    detect().is_some()
 }
 
 /// Name of the active audio backend (for diagnostics / the UI).

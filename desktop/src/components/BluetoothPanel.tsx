@@ -13,9 +13,11 @@ function iconFor(icon: string): string {
 
 interface Props {
   notify: Notify;
+  os: string;
 }
 
-export default function BluetoothPanel({ notify }: Props) {
+export default function BluetoothPanel({ notify, os }: Props) {
+  const isWindows = os === "windows";
   const [state, setState] = useState<BtState | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -51,8 +53,14 @@ export default function BluetoothPanel({ notify }: Props) {
       <div>
         <div className="panel-title">🔵 Bluetooth</div>
         <div className="empty">
-          <code>bluetoothctl</code> not found. Install <code>bluez-utils</code> to manage
-          Bluetooth devices.
+          {isWindows ? (
+            <>No Bluetooth adapter found.</>
+          ) : (
+            <>
+              <code>bluetoothctl</code> not found. Install <code>bluez-utils</code> to manage
+              Bluetooth devices.
+            </>
+          )}
         </div>
       </div>
     );
@@ -68,7 +76,11 @@ export default function BluetoothPanel({ notify }: Props) {
       <div className="row between">
         <div>
           <div className="panel-title">🔵 Bluetooth</div>
-          <div className="panel-sub">Connect and manage paired Bluetooth devices.</div>
+          <div className="panel-sub">
+            {isWindows
+              ? "Paired devices and adapter power. Pair or connect from Windows Settings."
+              : "Connect and manage paired Bluetooth devices."}
+          </div>
         </div>
         <div className="row" style={{ gap: 10 }}>
           <span className="panel-sub" style={{ margin: 0 }}>
@@ -104,38 +116,47 @@ export default function BluetoothPanel({ notify }: Props) {
             </div>
           </div>
 
-          <button
-            className="btn ghost"
-            disabled={busy === d.mac}
-            onClick={() =>
-              act(
-                d.mac,
-                () => api.btSetTrust(d.mac, !d.trusted),
-                d.trusted ? "Untrusted" : "Trusted"
-              )
-            }
-          >
-            {d.trusted ? "★" : "☆"}
-          </button>
-
-          {d.connected ? (
-            <button
-              className="btn danger"
-              disabled={busy === d.mac}
-              onClick={() =>
-                act(d.mac, () => api.btDisconnect(d.mac), `Disconnected ${d.name}`)
-              }
-            >
-              Disconnect
-            </button>
+          {isWindows ? (
+            // Windows: read-only list (connect/disconnect is managed by the OS).
+            <span className={d.connected ? "badge-active" : "panel-sub"} style={{ margin: 0 }}>
+              {d.connected ? "● Connected" : "Paired"}
+            </span>
           ) : (
-            <button
-              className="btn primary"
-              disabled={busy === d.mac}
-              onClick={() => act(d.mac, () => api.btConnect(d.mac), `Connected ${d.name}`)}
-            >
-              Connect
-            </button>
+            <>
+              <button
+                className="btn ghost"
+                disabled={busy === d.mac}
+                onClick={() =>
+                  act(
+                    d.mac,
+                    () => api.btSetTrust(d.mac, !d.trusted),
+                    d.trusted ? "Untrusted" : "Trusted"
+                  )
+                }
+              >
+                {d.trusted ? "★" : "☆"}
+              </button>
+
+              {d.connected ? (
+                <button
+                  className="btn danger"
+                  disabled={busy === d.mac}
+                  onClick={() =>
+                    act(d.mac, () => api.btDisconnect(d.mac), `Disconnected ${d.name}`)
+                  }
+                >
+                  Disconnect
+                </button>
+              ) : (
+                <button
+                  className="btn primary"
+                  disabled={busy === d.mac}
+                  onClick={() => act(d.mac, () => api.btConnect(d.mac), `Connected ${d.name}`)}
+                >
+                  Connect
+                </button>
+              )}
+            </>
           )}
         </div>
       ))}

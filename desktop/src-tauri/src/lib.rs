@@ -7,6 +7,8 @@ mod hotplug;
 mod kernel;
 mod platform;
 mod privileged;
+#[cfg(target_os = "windows")]
+mod winutil;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

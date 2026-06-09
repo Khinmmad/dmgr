@@ -41,6 +41,21 @@ env_logger = "0.11"
 udev = "0.9"
 libc = "0.2"
 
+[target.'cfg(target_os = "windows")'.dependencies]
+# windows-core is needed so the `#[interface]` macro's generated `windows_core::`
+# paths resolve when defining the custom IPolicyConfig interface.
+windows-core = "0.58"
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Variant",
+    "Win32_Media_Audio",
+    "Win32_Media_Audio_Endpoints",
+    "Win32_Devices_FunctionDiscovery",
+    "Win32_UI_Shell_PropertiesSystem",
+] }
+
 [profile.release]
 panic = "abort"
 codegen-units = 1
