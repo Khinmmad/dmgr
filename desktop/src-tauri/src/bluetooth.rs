@@ -211,7 +211,7 @@ mod win_impl {
             _ => Vec::new(),
         };
 
-        let mut devices = Vec::new();
+        let mut devices: Vec<BtDevice> = Vec::new();
         let mut powered = false;
         let mut any = false;
         for it in items {
@@ -226,14 +226,8 @@ mod win_impl {
                     let n = get("FriendlyName");
                     if n.is_empty() { instance.clone() } else { n }
                 };
-                devices.push(BtDevice {
-                    mac: mac_from_instance(&instance).unwrap_or(instance),
-                    name: name.clone(),
-                    paired: true,
-                    connected: ok,
-                    trusted: false,
-                    icon: icon_for(&name),
-                });
+                let mac = mac_from_instance(&instance).unwrap_or_else(|| instance.clone());
+                merge_device(&mut devices, mac, name, ok);
             } else if ok {
                 // A radio/adapter that's OK means Bluetooth is powered on.
                 powered = true;
@@ -272,23 +266,78 @@ mod win_impl {
         Err("Trust management isn't applicable on Windows.".into())
     }
 
-    /// Extract the 12-hex MAC from a "...Dev_AABBCCDDEEFF..." instance id.
-    fn mac_from_instance(instance: &str) -> Option<String> {
+    /// Extract a 12-hex MAC from a Bluetooth PnP instance id.
+    /// Handles both `...\DEV_AABBCCDDEEFF\...` (paired device) and the profile
+    /// transport form `...\<seg>&AABBCCDDEEFF_C00000000` (AVRCP/A2DP sub-nodes).
+    pub(crate) fn mac_from_instance(instance: &str) -> Option<String> {
         let upper = instance.to_ascii_uppercase();
-        let idx = upper.find("DEV_")? + 4;
-        let hex: String = upper[idx..]
-            .chars()
-            .take_while(|c| c.is_ascii_hexdigit())
-            .collect();
-        if hex.len() < 12 {
-            return None;
+        // Format A: the MAC follows "DEV_".
+        if let Some(p) = upper.find("DEV_") {
+            if let Some(mac) = take_mac(&upper[p + 4..]) {
+                return Some(mac);
+            }
         }
-        let bytes: Vec<String> = hex[..12]
-            .as_bytes()
+        // Format B: scan only the last '\'-segment for a 12-hex run (avoids the
+        // 12-hex tail of the Bluetooth base-UUID that appears mid-string).
+        let last = upper.rsplit('\\').next().unwrap_or(&upper);
+        let mut run = String::new();
+        for c in last.chars() {
+            if c.is_ascii_hexdigit() {
+                run.push(c);
+                if run.len() == 12 {
+                    return Some(fmt_mac(&run));
+                }
+            } else {
+                run.clear();
+            }
+        }
+        None
+    }
+
+    /// Read up to 12 leading hex digits and format them as a MAC.
+    fn take_mac(s: &str) -> Option<String> {
+        let hex: String = s.chars().take_while(|c| c.is_ascii_hexdigit()).take(12).collect();
+        (hex.len() == 12).then(|| fmt_mac(&hex))
+    }
+
+    fn fmt_mac(hex: &str) -> String {
+        hex.as_bytes()
             .chunks(2)
-            .map(|c| String::from_utf8_lossy(c).to_string())
-            .collect();
-        Some(bytes.join(":"))
+            .map(|c| String::from_utf8_lossy(c).into_owned())
+            .collect::<Vec<_>>()
+            .join(":")
+    }
+
+    /// A profile/transport sub-node name (AVRCP, A2DP, hands-free…), not the
+    /// device's main entry — used to prefer the cleaner name when merging.
+    pub(crate) fn is_subprofile(name: &str) -> bool {
+        let n = name.to_lowercase();
+        ["avrcp", "transporte", "a2dp", "avdtp", "hands-free", "handsfree", "hfp", "transport"]
+            .iter()
+            .any(|k| n.contains(k))
+    }
+
+    /// Add a device, or merge into an existing one with the same MAC (collapsing
+    /// AVRCP/A2DP sub-profile entries into a single device and OR-ing connected).
+    fn merge_device(devices: &mut Vec<BtDevice>, mac: String, name: String, connected: bool) {
+        if let Some(d) = devices.iter_mut().find(|d| d.mac == mac) {
+            d.connected |= connected;
+            let replace = (is_subprofile(&d.name) && !is_subprofile(&name))
+                || (!is_subprofile(&d.name) && !is_subprofile(&name) && name.len() < d.name.len());
+            if replace {
+                d.icon = icon_for(&name);
+                d.name = name;
+            }
+        } else {
+            devices.push(BtDevice {
+                icon: icon_for(&name),
+                mac,
+                name,
+                paired: true,
+                connected,
+                trusted: false,
+            });
+        }
     }
 
     fn icon_for(name: &str) -> String {
@@ -305,6 +354,49 @@ mod win_impl {
             "phone".into()
         } else {
             String::new()
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn mac_from_dev_form() {
+            assert_eq!(
+                mac_from_instance(r"BTHENUM\Dev_A4F6E8279B47\7&abc123&0&BluetoothDevice"),
+                Some("A4:F6:E8:27:9B:47".into())
+            );
+        }
+
+        #[test]
+        fn mac_from_transport_form_ignores_base_uuid() {
+            // The base-UUID tail (00805F9B34FB) sits mid-string; the real MAC is in
+            // the last '\'-segment.
+            let id = r"BTHENUM\{0000110E-0000-1000-8000-00805F9B34FB}_VID&0001004C_PID&761E\A&3B6AA2F9&0&A4F6E8279B47_C00000000";
+            assert_eq!(mac_from_instance(id), Some("A4:F6:E8:27:9B:47".into()));
+        }
+
+        #[test]
+        fn no_mac_returns_none() {
+            assert_eq!(mac_from_instance(r"USB\VID_8087&PID_0029\5&12abc"), None);
+        }
+
+        #[test]
+        fn subprofile_detection() {
+            assert!(is_subprofile("Isra iPhone Transporte AVRCP"));
+            assert!(is_subprofile("Headset A2DP"));
+            assert!(!is_subprofile("Isra iPhone"));
+            assert!(!is_subprofile("DualSense Wireless Controller"));
+        }
+
+        #[test]
+        fn icon_heuristics() {
+            assert_eq!(icon_for("Sony WH-1000 Headphones"), "audio-card");
+            assert_eq!(icon_for("Logitech K380 Keyboard"), "input-keyboard");
+            assert_eq!(icon_for("MX Master Mouse"), "input-mouse");
+            assert_eq!(icon_for("Isra iPhone"), "phone");
+            assert_eq!(icon_for("DualSense Wireless Controller"), "");
         }
     }
 }

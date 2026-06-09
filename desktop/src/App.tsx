@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { PhysicalSize } from "@tauri-apps/api/dpi";
 import { api } from "./api";
 import type { Capabilities, Device, Platform } from "./types";
 import { NOISE_BUSES } from "./types";
@@ -76,6 +78,48 @@ export default function App() {
   useEffect(() => {
     applySettings(settings);
   }, [settings]);
+
+  // Remember the window size across sessions.
+  useEffect(() => {
+    let dispose: (() => void) | undefined;
+    let t: number | undefined;
+    try {
+      const win = getCurrentWindow();
+      try {
+        const raw = localStorage.getItem("dmgr.win");
+        if (raw) {
+          const s = JSON.parse(raw);
+          if (s && s.w > 300 && s.h > 300) {
+            win.setSize(new PhysicalSize(s.w, s.h)).catch(() => {});
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+      win
+        .onResized(({ payload }) => {
+          window.clearTimeout(t);
+          t = window.setTimeout(() => {
+            try {
+              localStorage.setItem(
+                "dmgr.win",
+                JSON.stringify({ w: payload.width, h: payload.height })
+              );
+            } catch {
+              /* ignore */
+            }
+          }, 400);
+        })
+        .then((fn) => (dispose = fn))
+        .catch(() => {});
+    } catch {
+      /* not running under Tauri */
+    }
+    return () => {
+      dispose?.();
+      window.clearTimeout(t);
+    };
+  }, []);
 
   // Persist (or forget) the last view & filters per the "remember" preference.
   useEffect(() => {

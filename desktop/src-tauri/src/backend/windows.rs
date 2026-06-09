@@ -145,3 +145,36 @@ fn status_map(status: &str, present: bool) -> DeviceStatus {
         _ => DeviceStatus::Unknown,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn class_to_bus_maps_known_and_unknown() {
+        assert_eq!(class_to_bus("USB"), Bus::Usb);
+        assert_eq!(class_to_bus("net"), Bus::Net);
+        assert_eq!(class_to_bus("Display"), Bus::Drm);
+        assert_eq!(class_to_bus("Media"), Bus::Audio);
+        assert_eq!(class_to_bus("Keyboard"), Bus::Input);
+        assert_eq!(class_to_bus(""), Bus::Unknown("Other".into()));
+        assert_eq!(class_to_bus("Printer"), Bus::Unknown("Printer".into()));
+    }
+
+    #[test]
+    fn status_map_handles_presence_and_state() {
+        assert_eq!(status_map("OK", true), DeviceStatus::Online);
+        assert_eq!(status_map("Error", true), DeviceStatus::Error);
+        assert_eq!(status_map("Degraded", true), DeviceStatus::Suspended);
+        assert_eq!(status_map("Whatever", true), DeviceStatus::Unknown);
+        // Absent devices are offline regardless of status text.
+        assert_eq!(status_map("OK", false), DeviceStatus::Offline);
+    }
+
+    #[test]
+    fn capitalize_first_letter() {
+        assert_eq!(capitalize("printer"), "Printer");
+        assert_eq!(capitalize("HID"), "Hid");
+        assert_eq!(capitalize(""), "");
+    }
+}

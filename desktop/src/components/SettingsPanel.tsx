@@ -1,5 +1,5 @@
 import type { Settings } from "../settings";
-import { ACCENTS } from "../settings";
+import { ACCENTS, DEFAULT_SETTINGS } from "../settings";
 
 interface Props {
   settings: Settings;
@@ -104,11 +104,14 @@ export default function SettingsPanel({ settings, onChange, platformName }: Prop
         </div>
       </div>
 
-      {platformName && (
-        <div className="panel-sub" style={{ marginTop: 18 }}>
-          Running on {platformName}.
-        </div>
-      )}
+      <div className="row between" style={{ marginTop: 18 }}>
+        <span className="panel-sub" style={{ margin: 0 }}>
+          {platformName ? `Running on ${platformName}.` : ""}
+        </span>
+        <button className="btn ghost" onClick={() => onChange({ ...DEFAULT_SETTINGS })}>
+          ↺ Reset to defaults
+        </button>
+      </div>
     </div>
   );
 }

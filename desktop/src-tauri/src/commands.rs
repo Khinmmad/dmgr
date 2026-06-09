@@ -144,8 +144,19 @@ pub fn capabilities() -> Capabilities {
         audio: audio::is_available(),
         audio_backend: audio::backend_name().to_string(),
         bluetooth: bluetooth::is_available(),
-        root: std::env::var("USER").map(|u| u == "root").unwrap_or(false),
+        root: is_privileged(),
     }
+}
+
+/// Whether we're running with elevated rights (root on Unix, Administrator on Windows).
+#[cfg(windows)]
+fn is_privileged() -> bool {
+    crate::privileged::can_elevate()
+}
+
+#[cfg(not(windows))]
+fn is_privileged() -> bool {
+    std::env::var("USER").map(|u| u == "root").unwrap_or(false)
 }
 
 #[tauri::command]

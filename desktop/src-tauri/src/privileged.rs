@@ -11,7 +11,11 @@
 
 #[cfg(windows)]
 pub fn can_elevate() -> bool {
-    is_elevated()
+    // Admin status can't change during the process lifetime, so cache it — this
+    // is queried from both capabilities() and platform_info() at startup.
+    use std::sync::OnceLock;
+    static CACHED: OnceLock<bool> = OnceLock::new();
+    *CACHED.get_or_init(is_elevated)
 }
 
 /// Whether the current process token is in the Administrators role.
