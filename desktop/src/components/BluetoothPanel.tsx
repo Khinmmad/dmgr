@@ -97,6 +97,15 @@ export default function BluetoothPanel({ notify, os }: Props) {
               )
             }
           />
+          {isWindows && (
+            <button
+              className="iconbtn"
+              onClick={() => api.openBluetoothSettings().catch((e) => notify(String(e), "err"))}
+              title="Open Windows Bluetooth settings (pair / connect)"
+            >
+              ⚙ Settings
+            </button>
+          )}
           <button className="iconbtn" onClick={load} title="Refresh">
             ⟳
           </button>

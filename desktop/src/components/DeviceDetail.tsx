@@ -108,49 +108,64 @@ export default function DeviceDetail({ device, os, notify, onChanged }: Props) {
         )}
 
         <div className="row" style={{ flexWrap: "wrap", gap: 10 }}>
-          {device.driver ? (
-            <button
-              className="btn danger"
-              disabled={busy}
-              onClick={() => {
-                if (!confirm(`Uninstall driver "${device.driver}" from ${device.name}?`))
-                  return;
-                guard(() => api.unbindDriver(device.path), "Driver unbound");
-              }}
-            >
-              ✕ Uninstall driver
-            </button>
-          ) : (
-            <span className="panel-sub" style={{ margin: 0 }}>
-              No driver bound.
-            </span>
-          )}
-
-          {drivers.length > 0 && (
-            <div className="row" style={{ gap: 8 }}>
-              <select
-                className="prop-input"
-                value={pick}
-                onChange={(e) => setPick(e.target.value)}
-                style={{ width: 200 }}
-              >
-                <option value="">Select driver…</option>
-                {drivers.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-              <button
-                className="btn primary"
-                disabled={busy || !pick}
-                onClick={() =>
-                  guard(() => api.bindDriver(device.path, pick), `Bound to ${pick}`)
-                }
-              >
-                ⟳ {device.driver ? "Change" : "Install"} driver
+          {isWindows ? (
+            // Driver install/replace on Windows is handled by the OS tools.
+            <>
+              <button className="btn" onClick={() => api.openDeviceManager().catch((e) => notify(String(e), "err"))}>
+                🪟 Open Device Manager
               </button>
-            </div>
+              <span className="panel-sub" style={{ margin: 0 }}>
+                {device.driver ? `Driver: ${device.driver}.` : "No driver."} Update or roll
+                back drivers from Device Manager.
+              </span>
+            </>
+          ) : (
+            <>
+              {device.driver ? (
+                <button
+                  className="btn danger"
+                  disabled={busy}
+                  onClick={() => {
+                    if (!confirm(`Uninstall driver "${device.driver}" from ${device.name}?`))
+                      return;
+                    guard(() => api.unbindDriver(device.path), "Driver unbound");
+                  }}
+                >
+                  ✕ Uninstall driver
+                </button>
+              ) : (
+                <span className="panel-sub" style={{ margin: 0 }}>
+                  No driver bound.
+                </span>
+              )}
+
+              {drivers.length > 0 && (
+                <div className="row" style={{ gap: 8 }}>
+                  <select
+                    className="prop-input"
+                    value={pick}
+                    onChange={(e) => setPick(e.target.value)}
+                    style={{ width: 200 }}
+                  >
+                    <option value="">Select driver…</option>
+                    {drivers.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    className="btn primary"
+                    disabled={busy || !pick}
+                    onClick={() =>
+                      guard(() => api.bindDriver(device.path, pick), `Bound to ${pick}`)
+                    }
+                  >
+                    ⟳ {device.driver ? "Change" : "Install"} driver
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

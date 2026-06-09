@@ -62,4 +62,8 @@ export const api = {
   // meta
   capabilities: () => invoke<Capabilities>("capabilities"),
   platformInfo: () => invoke<Platform>("platform_info"),
+
+  // windows shortcuts
+  openDeviceManager: () => invoke<void>("open_device_manager"),
+  openBluetoothSettings: () => invoke<void>("open_bluetooth_settings"),
 };

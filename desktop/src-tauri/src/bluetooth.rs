@@ -266,38 +266,48 @@ mod win_impl {
         Err("Trust management isn't applicable on Windows.".into())
     }
 
-    /// Extract a 12-hex MAC from a Bluetooth PnP instance id.
-    /// Handles both `...\DEV_AABBCCDDEEFF\...` (paired device) and the profile
-    /// transport form `...\<seg>&AABBCCDDEEFF_C00000000` (AVRCP/A2DP sub-nodes).
+    /// Extract a 12-hex MAC from a Bluetooth PnP instance id. Works across the
+    /// device form (`...\DEV_AABBCCDDEEFF\...`), the profile-transport form
+    /// (`...&AABBCCDDEEFF_C00000000`) and the BLE form
+    /// (`BTHLEDEVICE\{guid}_AABBCCDDEEFF\...`). GUID braces are stripped first so
+    /// the 12-hex tail of the Bluetooth base UUID can't be mistaken for a MAC.
     pub(crate) fn mac_from_instance(instance: &str) -> Option<String> {
-        let upper = instance.to_ascii_uppercase();
-        // Format A: the MAC follows "DEV_".
-        if let Some(p) = upper.find("DEV_") {
-            if let Some(mac) = take_mac(&upper[p + 4..]) {
-                return Some(mac);
-            }
-        }
-        // Format B: scan only the last '\'-segment for a 12-hex run (avoids the
-        // 12-hex tail of the Bluetooth base-UUID that appears mid-string).
-        let last = upper.rsplit('\\').next().unwrap_or(&upper);
-        let mut run = String::new();
-        for c in last.chars() {
+        let cleaned = strip_braces(&instance.to_ascii_uppercase());
+        // First run of *exactly* 12 hex digits.
+        let mut runs: Vec<String> = Vec::new();
+        let mut cur = String::new();
+        for c in cleaned.chars() {
             if c.is_ascii_hexdigit() {
-                run.push(c);
-                if run.len() == 12 {
-                    return Some(fmt_mac(&run));
-                }
-            } else {
-                run.clear();
+                cur.push(c);
+            } else if !cur.is_empty() {
+                runs.push(std::mem::take(&mut cur));
             }
         }
-        None
+        if !cur.is_empty() {
+            runs.push(cur);
+        }
+        runs.into_iter().find(|r| r.len() == 12).map(|r| fmt_mac(&r))
     }
 
-    /// Read up to 12 leading hex digits and format them as a MAC.
-    fn take_mac(s: &str) -> Option<String> {
-        let hex: String = s.chars().take_while(|c| c.is_ascii_hexdigit()).take(12).collect();
-        (hex.len() == 12).then(|| fmt_mac(&hex))
+    /// Replace `{...}` GUID spans with spaces (separators) so their hex doesn't
+    /// merge with surrounding tokens.
+    fn strip_braces(s: &str) -> String {
+        let mut out = String::with_capacity(s.len());
+        let mut depth = 0u32;
+        for c in s.chars() {
+            match c {
+                '{' => {
+                    depth += 1;
+                    out.push(' ');
+                }
+                '}' => {
+                    depth = depth.saturating_sub(1);
+                    out.push(' ');
+                }
+                _ => out.push(if depth == 0 { c } else { ' ' }),
+            }
+        }
+        out
     }
 
     fn fmt_mac(hex: &str) -> String {
@@ -375,6 +385,14 @@ mod win_impl {
             // the last '\'-segment.
             let id = r"BTHENUM\{0000110E-0000-1000-8000-00805F9B34FB}_VID&0001004C_PID&761E\A&3B6AA2F9&0&A4F6E8279B47_C00000000";
             assert_eq!(mac_from_instance(id), Some("A4:F6:E8:27:9B:47".into()));
+        }
+
+        #[test]
+        fn mac_from_ble_form_ignores_base_uuid() {
+            // BLE devices put the MAC after the GUID; the base-UUID inside the
+            // braces must not be matched.
+            let id = r"BTHLEDEVICE\{00001800-0000-1000-8000-00805F9B34FB}_5ECDFAA32F4C\B&65B0B75&0&0001";
+            assert_eq!(mac_from_instance(id), Some("5E:CD:FA:A3:2F:4C".into()));
         }
 
         #[test]

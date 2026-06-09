@@ -192,3 +192,41 @@ pub fn kernel_module_load(name: String) -> Result<(), String> {
 pub fn kernel_module_unload(name: String) -> Result<(), String> {
     kernel::unload(&name)
 }
+
+// ── Windows system shortcuts ──────────────────────────────────────────────────
+// Driver replacement and classic-Bluetooth connect aren't safely scriptable on
+// Windows, so we hand off to the OS tools that own those flows.
+
+/// Open the Windows Device Manager (devmgmt.msc).
+#[tauri::command]
+pub fn open_device_manager() -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        std::process::Command::new("cmd")
+            .args(["/c", "start", "", "devmgmt.msc"])
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| format!("could not open Device Manager: {e}"))
+    }
+    #[cfg(not(windows))]
+    {
+        Err("Device Manager is Windows-only".into())
+    }
+}
+
+/// Open the Windows Bluetooth settings page.
+#[tauri::command]
+pub fn open_bluetooth_settings() -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        std::process::Command::new("cmd")
+            .args(["/c", "start", "", "ms-settings:bluetooth"])
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| format!("could not open Bluetooth settings: {e}"))
+    }
+    #[cfg(not(windows))]
+    {
+        Err("Windows-only".into())
+    }
+}

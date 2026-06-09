@@ -50,6 +50,8 @@ pub fn run() {
             commands::kernel_module_info,
             commands::kernel_module_load,
             commands::kernel_module_unload,
+            commands::open_device_manager,
+            commands::open_bluetooth_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running dmgr-desktop");
