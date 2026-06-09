@@ -15,40 +15,12 @@ pub struct WindowsBackend;
 
 impl DeviceBackend for WindowsBackend {
     fn scan(&self) -> Result<Vec<Device>, String> {
-        let json = powershell(
-            "Get-PnpDevice | Select-Object InstanceId,FriendlyName,Class,Status,Present,Service,Manufacturer | ConvertTo-Json -Compress",
-        )?;
-        let value: serde_json::Value =
-            serde_json::from_str(&json).map_err(|e| format!("parse Get-PnpDevice: {e}"))?;
-
-        let items = match value {
-            serde_json::Value::Array(a) => a,
-            obj @ serde_json::Value::Object(_) => vec![obj], // single device
-            _ => Vec::new(),
-        };
-
-        let mut devices = Vec::new();
-        for it in items {
-            let get = |k: &str| it.get(k).and_then(|v| v.as_str()).map(str::to_string);
-            let instance = match get("InstanceId") {
-                Some(s) if !s.is_empty() => s,
-                _ => continue,
-            };
-            let class = get("Class").unwrap_or_default();
-            let status = get("Status").unwrap_or_default();
-            let present = it.get("Present").and_then(|v| v.as_bool()).unwrap_or(true);
-            let name = get("FriendlyName").unwrap_or_else(|| instance.clone());
-
-            let bus = class_to_bus(&class);
-            let mut dev = Device::new(instance.clone(), name, bus, class.clone(), instance.clone());
-            dev.driver = get("Service");
-            dev.vendor = get("Manufacturer");
-            dev.status = status_map(&status, present);
-            dev.authorized = status.eq_ignore_ascii_case("OK");
-            dev.properties = HashMap::new();
-            devices.push(dev);
+        // Prefer the fast native SetupAPI enumeration; fall back to PowerShell
+        // (Get-PnpDevice) only if it yields nothing, so behavior never regresses.
+        match scan_native() {
+            Ok(devs) if !devs.is_empty() => Ok(devs),
+            _ => scan_powershell(),
         }
-        Ok(devices)
     }
 
     fn available_drivers(&self, _path: &str) -> Result<Vec<String>, String> {
@@ -91,6 +63,168 @@ impl DeviceBackend for WindowsBackend {
         // runs silently (no prompt) if we are.
         crate::winutil::run_elevated(&action)
     }
+}
+
+// ── Native enumeration (SetupAPI) ─────────────────────────────────────────────
+
+/// Fast device scan via SetupDi* — no PowerShell process per scan.
+fn scan_native() -> Result<Vec<Device>, String> {
+    use windows::core::PCWSTR;
+    use windows::Win32::Devices::DeviceAndDriverInstallation::{
+        SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInfo, SetupDiGetClassDevsW,
+        DIGCF_ALLCLASSES, DIGCF_PRESENT, SP_DEVINFO_DATA,
+    };
+    use windows::Win32::Devices::Properties::{
+        DEVPKEY_Device_Class, DEVPKEY_Device_DeviceDesc, DEVPKEY_Device_DevNodeStatus,
+        DEVPKEY_Device_FriendlyName, DEVPKEY_Device_Manufacturer, DEVPKEY_Device_ProblemCode,
+        DEVPKEY_Device_Service,
+    };
+    use windows::Win32::Foundation::HWND;
+
+    unsafe {
+        let hdev = SetupDiGetClassDevsW(None, PCWSTR::null(), HWND::default(), DIGCF_PRESENT | DIGCF_ALLCLASSES)
+            .map_err(|e| e.message().to_string())?;
+
+        let mut devices = Vec::new();
+        let mut data = SP_DEVINFO_DATA {
+            cbSize: std::mem::size_of::<SP_DEVINFO_DATA>() as u32,
+            ..Default::default()
+        };
+
+        let mut i = 0u32;
+        while SetupDiEnumDeviceInfo(hdev, i, &mut data).is_ok() {
+            i += 1;
+
+            let instance = match instance_id(hdev, &data) {
+                Some(s) if !s.is_empty() => s,
+                _ => continue,
+            };
+            let class = string_prop(hdev, &data, &DEVPKEY_Device_Class).unwrap_or_default();
+            let name = string_prop(hdev, &data, &DEVPKEY_Device_FriendlyName)
+                .or_else(|| string_prop(hdev, &data, &DEVPKEY_Device_DeviceDesc))
+                .unwrap_or_else(|| instance.clone());
+            let problem = u32_prop(hdev, &data, &DEVPKEY_Device_ProblemCode).unwrap_or(0);
+            let _status = u32_prop(hdev, &data, &DEVPKEY_Device_DevNodeStatus);
+
+            let bus = class_to_bus(&class);
+            let mut dev = Device::new(instance.clone(), name, bus, class, instance);
+            dev.driver = string_prop(hdev, &data, &DEVPKEY_Device_Service);
+            dev.vendor = string_prop(hdev, &data, &DEVPKEY_Device_Manufacturer);
+            dev.status = problem_to_status(problem);
+            dev.authorized = problem != 22; // CM_PROB_DISABLED
+            dev.properties = HashMap::new();
+            devices.push(dev);
+        }
+
+        let _ = SetupDiDestroyDeviceInfoList(hdev);
+        Ok(devices)
+    }
+}
+
+/// CM_PROB_* problem code → status. 0 = working, 22 = disabled, else error.
+fn problem_to_status(problem: u32) -> DeviceStatus {
+    match problem {
+        0 => DeviceStatus::Online,
+        22 => DeviceStatus::Offline,
+        _ => DeviceStatus::Error,
+    }
+}
+
+unsafe fn instance_id(
+    hdev: windows::Win32::Devices::DeviceAndDriverInstallation::HDEVINFO,
+    data: &windows::Win32::Devices::DeviceAndDriverInstallation::SP_DEVINFO_DATA,
+) -> Option<String> {
+    use windows::Win32::Devices::DeviceAndDriverInstallation::SetupDiGetDeviceInstanceIdW;
+    let mut size = 0u32;
+    let _ = SetupDiGetDeviceInstanceIdW(hdev, data, None, Some(&mut size));
+    if size == 0 {
+        return None;
+    }
+    let mut buf = vec![0u16; size as usize];
+    SetupDiGetDeviceInstanceIdW(hdev, data, Some(&mut buf), Some(&mut size)).ok()?;
+    Some(String::from_utf16_lossy(&buf).trim_end_matches('\0').to_string())
+}
+
+unsafe fn string_prop(
+    hdev: windows::Win32::Devices::DeviceAndDriverInstallation::HDEVINFO,
+    data: &windows::Win32::Devices::DeviceAndDriverInstallation::SP_DEVINFO_DATA,
+    key: &windows::Win32::Devices::Properties::DEVPROPKEY,
+) -> Option<String> {
+    use windows::Win32::Devices::DeviceAndDriverInstallation::SetupDiGetDevicePropertyW;
+    use windows::Win32::Devices::Properties::{DEVPROPTYPE, DEVPROP_TYPE_STRING};
+
+    let mut ptype = DEVPROPTYPE(0);
+    let mut size = 0u32;
+    let _ = SetupDiGetDevicePropertyW(hdev, data, key, &mut ptype, None, Some(&mut size), 0);
+    if size == 0 {
+        return None;
+    }
+    let mut buf = vec![0u8; size as usize];
+    SetupDiGetDevicePropertyW(hdev, data, key, &mut ptype, Some(&mut buf), Some(&mut size), 0).ok()?;
+    if ptype != DEVPROP_TYPE_STRING {
+        return None;
+    }
+    let u16s = std::slice::from_raw_parts(buf.as_ptr() as *const u16, buf.len() / 2);
+    let s = String::from_utf16_lossy(u16s);
+    let s = s.trim_end_matches('\0').trim().to_string();
+    (!s.is_empty()).then_some(s)
+}
+
+unsafe fn u32_prop(
+    hdev: windows::Win32::Devices::DeviceAndDriverInstallation::HDEVINFO,
+    data: &windows::Win32::Devices::DeviceAndDriverInstallation::SP_DEVINFO_DATA,
+    key: &windows::Win32::Devices::Properties::DEVPROPKEY,
+) -> Option<u32> {
+    use windows::Win32::Devices::DeviceAndDriverInstallation::SetupDiGetDevicePropertyW;
+    use windows::Win32::Devices::Properties::DEVPROPTYPE;
+
+    let mut ptype = DEVPROPTYPE(0);
+    let mut size = 0u32;
+    let _ = SetupDiGetDevicePropertyW(hdev, data, key, &mut ptype, None, Some(&mut size), 0);
+    if size as usize != 4 {
+        return None;
+    }
+    let mut buf = [0u8; 4];
+    SetupDiGetDevicePropertyW(hdev, data, key, &mut ptype, Some(&mut buf), Some(&mut size), 0).ok()?;
+    Some(u32::from_ne_bytes(buf))
+}
+
+/// Fallback scan via PowerShell (Get-PnpDevice).
+fn scan_powershell() -> Result<Vec<Device>, String> {
+    let json = powershell(
+        "Get-PnpDevice | Select-Object InstanceId,FriendlyName,Class,Status,Present,Service,Manufacturer | ConvertTo-Json -Compress",
+    )?;
+    let value: serde_json::Value =
+        serde_json::from_str(&json).map_err(|e| format!("parse Get-PnpDevice: {e}"))?;
+
+    let items = match value {
+        serde_json::Value::Array(a) => a,
+        obj @ serde_json::Value::Object(_) => vec![obj], // single device
+        _ => Vec::new(),
+    };
+
+    let mut devices = Vec::new();
+    for it in items {
+        let get = |k: &str| it.get(k).and_then(|v| v.as_str()).map(str::to_string);
+        let instance = match get("InstanceId") {
+            Some(s) if !s.is_empty() => s,
+            _ => continue,
+        };
+        let class = get("Class").unwrap_or_default();
+        let status = get("Status").unwrap_or_default();
+        let present = it.get("Present").and_then(|v| v.as_bool()).unwrap_or(true);
+        let name = get("FriendlyName").unwrap_or_else(|| instance.clone());
+
+        let bus = class_to_bus(&class);
+        let mut dev = Device::new(instance.clone(), name, bus, class.clone(), instance.clone());
+        dev.driver = get("Service");
+        dev.vendor = get("Manufacturer");
+        dev.status = status_map(&status, present);
+        dev.authorized = status.eq_ignore_ascii_case("OK");
+        dev.properties = HashMap::new();
+        devices.push(dev);
+    }
+    Ok(devices)
 }
 
 fn powershell(script: &str) -> Result<String, String> {
