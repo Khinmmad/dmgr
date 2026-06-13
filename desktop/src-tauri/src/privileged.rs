@@ -40,7 +40,7 @@ fn is_elevated() -> bool {
 // ── Unix (Linux/macOS) ───────────────────────────────────────────────────────
 
 #[cfg(not(windows))]
-pub use unix_impl::{can_elevate, run_pkexec, run_privileged};
+pub use unix_impl::{can_elevate, is_root, run_pkexec, run_privileged};
 
 #[cfg(not(windows))]
 mod unix_impl {
@@ -81,7 +81,7 @@ mod unix_impl {
     }
 
     #[cfg(unix)]
-    fn is_root() -> bool {
+    pub fn is_root() -> bool {
         extern "C" {
             #[link_name = "geteuid"]
             fn geteuid() -> u32;
@@ -91,7 +91,7 @@ mod unix_impl {
     }
 
     #[cfg(not(unix))]
-    fn is_root() -> bool {
+    pub fn is_root() -> bool {
         false
     }
 

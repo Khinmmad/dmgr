@@ -1,10 +1,12 @@
-//! Windows backend via PowerShell (Get-PnpDevice / Enable-PnpDevice / ...).
+//! Windows backend: native SetupAPI enumeration (`SetupDi*`) for a fast scan,
+//! with a PowerShell (`Get-PnpDevice` / `Enable-PnpDevice` / ...) fallback used
+//! for scan plus property reads and enable/disable.
 //!
-//! NOTE: written but UNVERIFIED — it is `#[cfg(target_os = "windows")]` and the
-//! project is developed on Arch Linux, so it has not been compiled or run on
-//! Windows yet. Uses PowerShell instead of raw SetupAPI to avoid a heavy unsafe
-//! dependency for a first cut. Audio/Bluetooth/kernel-module panels are Linux-only
-//! and degrade to empty on Windows.
+//! NOTE: compiled and unit-tested on Windows via CI, but `#[cfg(target_os =
+//! "windows")]` and not yet runtime-tested on a real Windows machine (the project
+//! is developed on Arch Linux), so the exact PnP property/JSON shapes may need
+//! tweaking against live output. Audio/Bluetooth/kernel-module panels are
+//! Linux-only and degrade to empty on Windows.
 
 use super::DeviceBackend;
 use dmgr_core::device::{Bus, Device, DeviceStatus};

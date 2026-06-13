@@ -156,7 +156,9 @@ fn is_privileged() -> bool {
 
 #[cfg(not(windows))]
 fn is_privileged() -> bool {
-    std::env::var("USER").map(|u| u == "root").unwrap_or(false)
+    // euid==0 is the truthful check; the `USER` env var can be stale or unset
+    // when launched from a desktop entry, sudo, or pkexec.
+    crate::privileged::is_root()
 }
 
 #[tauri::command]

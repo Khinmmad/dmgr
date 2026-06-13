@@ -91,3 +91,35 @@ jobs:
       - name: Build desktop backend (compiles backend/windows.rs)
         working-directory: desktop
         run: cargo build --release --manifest-path src-tauri/Cargo.toml
+
+  # ── macOS: verifies the macOS backend scaffold actually compiles ────────────
+  macos:
+    name: macOS (desktop build — verifies MacosBackend)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Build frontend
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run build
+
+      - name: Test desktop (parsers, cross-platform)
+        working-directory: desktop
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Build desktop backend (compiles backend/macos.rs)
+        working-directory: desktop
+        run: cargo build --release --manifest-path src-tauri/Cargo.toml
