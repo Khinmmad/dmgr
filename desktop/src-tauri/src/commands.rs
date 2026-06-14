@@ -117,6 +117,11 @@ pub async fn bt_state() -> bluetooth::BtState {
 }
 
 #[tauri::command]
+pub async fn bt_pair(mac: String) -> Result<(), bluetooth::BtError> {
+    bluetooth::pair(&mac).await
+}
+
+#[tauri::command]
 pub async fn bt_connect(mac: String) -> Result<(), bluetooth::BtError> {
     bluetooth::connect(&mac).await
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Notify } from "../App";
 import { api } from "../api";
-import type { BtState } from "../types";
+import type { BtDevice, BtState } from "../types";
 
 function iconFor(icon: string): string {
   if (icon.includes("audio")) return "🎧";
@@ -21,7 +21,8 @@ export default function BluetoothPanel({ notify, os }: Props) {
   const [state, setState] = useState<BtState | null>(null);
   // Per-action in-flight guard. Prevents overlapping bluetoothctl calls when
   // the user double-clicks or rapidly toggles. Keys: "power", "scan",
-  // "trust:<mac>", "connect:<mac>", "disconnect:<mac>", "remove:<mac>".
+  // "trust:<mac>", "connect:<mac>", "disconnect:<mac>", "remove:<mac>",
+  // "pair:<mac>".
   const [inFlight, setInFlight] = useState<Set<string>>(new Set());
   // True while a scan is running, for the spinner.
   const [scanning, setScanning] = useState(false);
@@ -108,9 +109,12 @@ export default function BluetoothPanel({ notify, os }: Props) {
   const daemonDown = state?.available && !state.powered && state.devices.length === 0;
 
   const devices = state?.devices ?? [];
-  const sorted = [...devices].sort(
-    (a, b) => Number(b.connected) - Number(a.connected) || a.name.localeCompare(b.name)
-  );
+  const byPreference = (a: BtDevice, b: BtDevice) =>
+    Number(b.connected) - Number(a.connected) || a.name.localeCompare(b.name);
+  const paired = devices.filter((d) => d.paired).sort(byPreference);
+  // Discovered = seen during a scan but not yet paired (Linux only; on Windows
+  // every listed device is already paired and discovery is the OS's job).
+  const discovered = devices.filter((d) => !d.paired).sort(byPreference);
 
   return (
     <div>
@@ -172,10 +176,10 @@ export default function BluetoothPanel({ notify, os }: Props) {
       )}
 
       <div className="section-h">Paired devices</div>
-      {sorted.length === 0 && !daemonDown && (
+      {paired.length === 0 && !daemonDown && (
         <div className="empty">No paired devices. Click "Scan" to discover nearby ones.</div>
       )}
-      {sorted.map((d) => (
+      {paired.map((d) => (
         <div key={d.mac} className={`media-item ${d.connected ? "active" : ""}`}>
           <span className="ico">{iconFor(d.icon)}</span>
           <div className="meta">
@@ -252,6 +256,31 @@ export default function BluetoothPanel({ notify, os }: Props) {
           )}
         </div>
       ))}
+
+      {!isWindows && discovered.length > 0 && (
+        <>
+          <div className="section-h">Discovered devices</div>
+          {discovered.map((d) => (
+            <div key={d.mac} className="media-item">
+              <span className="ico">{iconFor(d.icon)}</span>
+              <div className="meta">
+                <div className="name">{d.name}</div>
+                <div className="desc">{d.mac} · not paired</div>
+              </div>
+              <button
+                className="btn primary"
+                disabled={isBusy(`pair:${d.mac}`)}
+                onClick={() =>
+                  act(`pair:${d.mac}`, () => api.btPair(d.mac), `Paired ${d.name}`)
+                }
+                title="Pair (bond) with this device"
+              >
+                {isBusy(`pair:${d.mac}`) ? "Pairing…" : "Pair"}
+              </button>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }

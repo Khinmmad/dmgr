@@ -41,6 +41,7 @@ export const api = {
 
   // bluetooth
   btState: () => invoke<BtState>("bt_state"),
+  btPair: (mac: string) => invoke<void>("bt_pair", { mac }),
   btConnect: (mac: string) => invoke<void>("bt_connect", { mac }),
   btDisconnect: (mac: string) => invoke<void>("bt_disconnect", { mac }),
   btSetPower: (on: boolean) => invoke<void>("bt_set_power", { on }),

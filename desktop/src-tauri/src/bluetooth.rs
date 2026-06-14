@@ -69,7 +69,9 @@ const ACTION_TIMEOUT: Duration = Duration::from_secs(8);
 // ── Linux (bluetoothctl) ──────────────────────────────────────────────────────
 
 #[cfg(not(windows))]
-pub use unix_impl::{connect, disconnect, is_available, remove, scan, set_power, set_trust, state};
+pub use unix_impl::{
+    connect, disconnect, is_available, pair, remove, scan, set_power, set_trust, state,
+};
 
 #[cfg(not(windows))]
 mod unix_impl {
@@ -219,6 +221,13 @@ mod unix_impl {
             trusted: yes("Trusted:"),
             icon: field("Icon:").unwrap_or_default(),
         }
+    }
+
+    /// Pair (bond) with a discovered device. Works for "Just Works" devices
+    /// (most headsets, mice, keyboards); a device that requires a PIN/passkey
+    /// needs an interactive agent and will surface a backend error here.
+    pub async fn pair(mac: &str) -> Result<(), BtError> {
+        run_cmd(&["pair", mac], ACTION_TIMEOUT).await
     }
 
     pub async fn connect(mac: &str) -> Result<(), BtError> {
@@ -408,7 +417,9 @@ Device AA:BB:CC:DD:EE:FF
 // ── Windows (PnP) ─────────────────────────────────────────────────────────────
 
 #[cfg(windows)]
-pub use win_impl::{connect, disconnect, is_available, remove, scan, set_power, set_trust, state};
+pub use win_impl::{
+    connect, disconnect, is_available, pair, remove, scan, set_power, set_trust, state,
+};
 
 #[cfg(windows)]
 mod win_impl {
@@ -556,6 +567,14 @@ mod win_impl {
         Err(BtError::Backend(
             "Removing paired devices isn't supported on Windows yet — use \
              Windows Settings → Bluetooth & devices → Devices."
+                .into(),
+        ))
+    }
+
+    pub async fn pair(_mac: &str) -> Result<(), BtError> {
+        Err(BtError::Backend(
+            "Pairing new devices isn't supported on Windows yet — pair from \
+             Windows Settings → Bluetooth & devices."
                 .into(),
         ))
     }
