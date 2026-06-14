@@ -22,6 +22,7 @@ pub fn run() {
         .manage(backend::current_backend())
         .setup(|app| {
             hotplug::spawn(app.handle().clone());
+            bluetooth::spawn_monitor(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

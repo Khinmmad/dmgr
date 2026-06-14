@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import type { Notify } from "../App";
 import { api } from "../api";
 import { useAliases } from "../aliases";
@@ -69,9 +70,22 @@ export default function BluetoothPanel({ notify, os, notifications }: Props) {
 
   useEffect(() => {
     load();
-    const t = window.setInterval(load, 5000);
-    return () => window.clearInterval(t);
-  }, [load]);
+    // Event-driven: the backend's bluetoothctl monitor emits "bluetooth-changed"
+    // on any BlueZ change; debounce bursts (e.g. RSSI churn during a scan).
+    let t: number | undefined;
+    const unlisten = listen("bluetooth-changed", () => {
+      window.clearTimeout(t);
+      t = window.setTimeout(load, 500);
+    });
+    // Fallback poll in case an event is missed — slow on Linux (events do the
+    // work), unchanged on Windows (no BlueZ event stream there).
+    const iv = window.setInterval(load, isWindows ? 5000 : 20000);
+    return () => {
+      unlisten.then((fn) => fn());
+      window.clearTimeout(t);
+      window.clearInterval(iv);
+    };
+  }, [load, isWindows]);
 
   const setBusy = (key: string, on: boolean) =>
     setInFlight((prev) => {

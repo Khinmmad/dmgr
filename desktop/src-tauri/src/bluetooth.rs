@@ -75,6 +75,22 @@ pub use unix_impl::{
     connect, disconnect, is_available, pair, remove, scan, set_power, set_trust, state,
 };
 
+/// Spawn a background task that emits `bluetooth-changed` whenever BlueZ reports
+/// a device add/remove/property change, so the UI can refresh without polling.
+/// Linux only; elsewhere it's a no-op (the PnP hotplug monitor and the panel's
+/// fallback poll cover those platforms).
+#[cfg(not(windows))]
+pub fn spawn_monitor(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = unix_impl::monitor(app).await {
+            log::warn!("bluetooth monitor stopped: {e}");
+        }
+    });
+}
+
+#[cfg(windows)]
+pub fn spawn_monitor(_app: tauri::AppHandle) {}
+
 #[cfg(not(windows))]
 mod unix_impl {
     use super::{BtDevice, BtError, BtState, ACTION_TIMEOUT, QUERY_TIMEOUT};
@@ -304,6 +320,44 @@ mod unix_impl {
                 .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
         });
         Ok(out.devices)
+    }
+
+    /// Long-lived monitor: runs `bluetoothctl` with stdin kept open (so it stays
+    /// in interactive mode) and emits `bluetooth-changed` on every BlueZ
+    /// `[CHG]`/`[NEW]`/`[DEL]` line. This drives event-based UI refresh instead
+    /// of polling.
+    pub async fn monitor(app: tauri::AppHandle) -> Result<(), BtError> {
+        use tauri::Emitter;
+        use tokio::io::{AsyncBufReadExt, BufReader};
+
+        if !is_available().await {
+            return Ok(()); // no bluetoothctl → nothing to monitor
+        }
+
+        let mut child = Command::new("bluetoothctl")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .kill_on_drop(true)
+            .spawn()
+            .map_err(|_| BtError::NotInstalled)?;
+
+        // Hold stdin open for the process lifetime; closing it (EOF) makes
+        // bluetoothctl exit and the monitor stop.
+        let stdin = child.stdin.take();
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| BtError::Backend("no monitor stdout".into()))?;
+        let mut lines = BufReader::new(stdout).lines();
+
+        while let Ok(Some(line)) = lines.next_line().await {
+            if line.contains("[CHG]") || line.contains("[NEW]") || line.contains("[DEL]") {
+                let _ = app.emit("bluetooth-changed", ());
+            }
+        }
+        drop(stdin);
+        Ok(())
     }
 
     async fn run(args: &[&str], timeout: Duration) -> Result<String, BtError> {
