@@ -1,6 +1,7 @@
 // Thin typed wrappers around the Tauri command layer.
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  AudioApp,
   AudioDevice,
   BtDevice,
   BtState,
@@ -38,6 +39,11 @@ export const api = {
     invoke<void>("audio_set_volume", { name, percent }),
   setMute: (name: string, muted: boolean) =>
     invoke<void>("audio_set_mute", { name, muted }),
+  audioAppStreams: () => invoke<AudioApp[]>("audio_app_streams"),
+  setAppVolume: (index: number, percent: number) =>
+    invoke<void>("audio_set_app_volume", { index, percent }),
+  setAppMute: (index: number, muted: boolean) =>
+    invoke<void>("audio_set_app_mute", { index, muted }),
 
   // bluetooth
   btState: () => invoke<BtState>("bt_state"),

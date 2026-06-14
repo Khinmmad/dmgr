@@ -116,6 +116,76 @@ fn parse(text: &str, kind: &str, default_name: &str) -> Vec<AudioDevice> {
     out
 }
 
+// ── Per-application streams (sink-inputs) ───────────────────────────────────
+
+pub fn app_streams() -> Vec<super::AudioApp> {
+    run(&["list", "sink-inputs"]).map(|t| parse_inputs(&t)).unwrap_or_default()
+}
+
+pub fn set_app_volume(index: u32, percent: u32) -> Result<(), String> {
+    cmd(&[
+        "set-sink-input-volume",
+        &index.to_string(),
+        &format!("{}%", percent.min(150)),
+    ])
+}
+
+pub fn set_app_mute(index: u32, muted: bool) -> Result<(), String> {
+    cmd(&[
+        "set-sink-input-mute",
+        &index.to_string(),
+        if muted { "1" } else { "0" },
+    ])
+}
+
+fn parse_inputs(text: &str) -> Vec<super::AudioApp> {
+    let mut out: Vec<super::AudioApp> = Vec::new();
+    let mut cur: Option<super::AudioApp> = None;
+
+    let flush = |c: &mut Option<super::AudioApp>, v: &mut Vec<super::AudioApp>| {
+        if let Some(mut a) = c.take() {
+            if a.name.is_empty() {
+                a.name = if a.media.is_empty() {
+                    format!("Stream #{}", a.index)
+                } else {
+                    a.media.clone()
+                };
+            }
+            v.push(a);
+        }
+    };
+
+    for line in text.lines() {
+        let t = line.trim();
+        if let Some(rest) = t.strip_prefix("Sink Input #") {
+            flush(&mut cur, &mut out);
+            cur = Some(super::AudioApp {
+                index: rest.trim().parse().unwrap_or(0),
+                name: String::new(),
+                media: String::new(),
+                volume: None,
+                muted: false,
+            });
+        } else if let Some(a) = cur.as_mut() {
+            if let Some(v) = t.strip_prefix("Mute: ") {
+                a.muted = v.trim() == "yes";
+            } else if a.volume.is_none() && t.starts_with("Volume:") {
+                a.volume = t
+                    .split('/')
+                    .map(str::trim)
+                    .find(|s| s.ends_with('%'))
+                    .and_then(|s| s.trim_end_matches('%').trim().parse().ok());
+            } else if let Some(v) = t.strip_prefix("application.name = ") {
+                a.name = v.trim().trim_matches('"').to_string();
+            } else if let Some(v) = t.strip_prefix("media.name = ") {
+                a.media = v.trim().trim_matches('"').to_string();
+            }
+        }
+    }
+    flush(&mut cur, &mut out);
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,5 +229,35 @@ Sink #52
     #[test]
     fn empty_input_yields_nothing() {
         assert!(parse("", "Sink", "").is_empty());
+    }
+
+    const SINK_INPUTS: &str = "\
+Sink Input #200
+\tSink: 49
+\tMute: no
+\tVolume: front-left: 32768 /  50% / -18.06 dB,   front-right: 32768 /  50%
+\tProperties:
+\t\tapplication.name = \"Firefox\"
+\t\tmedia.name = \"YouTube\"
+Sink Input #201
+\tMute: yes
+\tVolume: front-left: 65536 / 100%
+\tProperties:
+\t\tmedia.name = \"Some game\"
+";
+
+    #[test]
+    fn parses_sink_inputs_with_app_and_media() {
+        let apps = parse_inputs(SINK_INPUTS);
+        assert_eq!(apps.len(), 2);
+        assert_eq!(apps[0].index, 200);
+        assert_eq!(apps[0].name, "Firefox");
+        assert_eq!(apps[0].media, "YouTube");
+        assert_eq!(apps[0].volume, Some(50));
+        assert!(!apps[0].muted);
+        // no application.name → falls back to media.name
+        assert_eq!(apps[1].name, "Some game");
+        assert!(apps[1].muted);
+        assert_eq!(apps[1].volume, Some(100));
     }
 }

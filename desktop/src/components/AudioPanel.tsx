@@ -3,7 +3,7 @@ import type { Notify } from "../App";
 import { api } from "../api";
 import { useAliases } from "../aliases";
 import { useFavorites } from "../favorites";
-import type { AudioDevice } from "../types";
+import type { AudioApp, AudioDevice } from "../types";
 
 const KIND_ICON: Record<AudioDevice["kind"], string> = {
   Bluetooth: "🔵",
@@ -21,6 +21,7 @@ interface Props {
 export default function AudioPanel({ notify, notifications }: Props) {
   const [outputs, setOutputs] = useState<AudioDevice[]>([]);
   const [inputs, setInputs] = useState<AudioDevice[]>([]);
+  const [apps, setApps] = useState<AudioApp[]>([]);
   const [busy, setBusy] = useState(false);
   const [editKey, setEditKey] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -32,7 +33,11 @@ export default function AudioPanel({ notify, notifications }: Props) {
 
   const load = useCallback(async () => {
     try {
-      const [o, i] = await Promise.all([api.audioOutputs(), api.audioInputs()]);
+      const [o, i, a] = await Promise.all([
+        api.audioOutputs(),
+        api.audioInputs(),
+        api.audioAppStreams(),
+      ]);
       const cur = new Map(o.map((d) => [d.name, d.description] as [string, string]));
       if (prevOut.current && notifications) {
         for (const [name, desc] of cur)
@@ -43,6 +48,7 @@ export default function AudioPanel({ notify, notifications }: Props) {
       prevOut.current = cur;
       setOutputs(o);
       setInputs(i);
+      setApps(a);
     } catch (e) {
       notify(String(e), "err");
     }
@@ -93,6 +99,24 @@ export default function AudioPanel({ notify, notifications }: Props) {
   const toggleMute = async (d: AudioDevice) => {
     try {
       await api.setMute(d.name, !d.muted);
+      await load();
+    } catch (e) {
+      notify(String(e), "err");
+    }
+  };
+
+  const onAppVolume = async (a: AudioApp, percent: number) => {
+    setApps((prev) => prev.map((x) => (x.index === a.index ? { ...x, volume: percent } : x)));
+    try {
+      await api.setAppVolume(a.index, percent);
+    } catch (e) {
+      notify(String(e), "err");
+    }
+  };
+
+  const toggleAppMute = async (a: AudioApp) => {
+    try {
+      await api.setAppMute(a.index, !a.muted);
       await load();
     } catch (e) {
       notify(String(e), "err");
@@ -261,6 +285,41 @@ export default function AudioPanel({ notify, notifications }: Props) {
                 <button className="btn primary" onClick={() => switchInput(d)}>
                   Use this
                 </button>
+              )}
+            </div>
+          ))}
+        </>
+      )}
+
+      {apps.length > 0 && (
+        <>
+          <div className="section-h">Applications</div>
+          {apps.map((a) => (
+            <div key={a.index} className="media-item">
+              <span className="ico">🎵</span>
+              <div className="meta">
+                <div className="name">{a.name}</div>
+                <div className="desc">
+                  {a.media && a.media !== a.name ? a.media : "playing"}
+                  {a.volume != null ? ` · ${a.volume}%` : ""}
+                </div>
+              </div>
+              <button
+                className="btn ghost"
+                onClick={() => toggleAppMute(a)}
+                title={a.muted ? "Unmute" : "Mute"}
+              >
+                {a.muted ? "🔇" : "🔊"}
+              </button>
+              {a.volume != null && (
+                <input
+                  className="slider"
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={a.volume}
+                  onChange={(e) => onAppVolume(a, Number(e.target.value))}
+                />
               )}
             </div>
           ))}

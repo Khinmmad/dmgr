@@ -109,6 +109,21 @@ pub fn audio_set_mute(name: String, muted: bool) -> Result<(), String> {
     audio_or_err()?.set_mute(&name, muted)
 }
 
+#[tauri::command]
+pub fn audio_app_streams() -> Vec<audio::AudioApp> {
+    audio::app_streams()
+}
+
+#[tauri::command]
+pub fn audio_set_app_volume(index: u32, percent: u32) -> Result<(), String> {
+    audio::set_app_volume(index, percent)
+}
+
+#[tauri::command]
+pub fn audio_set_app_mute(index: u32, muted: bool) -> Result<(), String> {
+    audio::set_app_mute(index, muted)
+}
+
 // ── Bluetooth ────────────────────────────────────────────────────────────────
 
 #[tauri::command]

@@ -61,6 +61,14 @@ export interface AudioDevice {
   kind: "Builtin" | "Usb" | "Hdmi" | "Bluetooth" | "Virtual";
 }
 
+export interface AudioApp {
+  index: number;
+  name: string;
+  media: string;
+  volume: number | null;
+  muted: boolean;
+}
+
 export interface BtDevice {
   mac: string;
   name: string;
