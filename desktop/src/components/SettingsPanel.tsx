@@ -1,5 +1,5 @@
 import type { Settings } from "../settings";
-import { ACCENTS, DEFAULT_SETTINGS } from "../settings";
+import { ACCENTS, DEFAULT_SETTINGS, FONT_SCALES, THEMES } from "../settings";
 
 interface Props {
   settings: Settings;
@@ -16,24 +16,22 @@ export default function SettingsPanel({ settings, onChange, platformName }: Prop
       {/* Theme */}
       <div className="section-h">Appearance</div>
       <div className="card">
-        <div className="set-row">
-          <div>
-            <div className="set-label">Theme</div>
-            <div className="panel-sub" style={{ margin: 0 }}>Light or dark color scheme.</div>
-          </div>
-          <div className="seg">
-            <button
-              className={settings.theme === "dark" ? "active" : ""}
-              onClick={() => onChange({ theme: "dark" })}
-            >
-              🌙 Dark
-            </button>
-            <button
-              className={settings.theme === "light" ? "active" : ""}
-              onClick={() => onChange({ theme: "light" })}
-            >
-              ☀ Light
-            </button>
+        <div style={{ padding: "12px 0", borderBottom: "1px solid var(--bg-alt)" }}>
+          <div className="set-label">Theme</div>
+          <div className="panel-sub" style={{ margin: "0 0 4px" }}>Full color scheme.</div>
+          <div className="theme-grid">
+            {THEMES.map((t) => (
+              <button
+                key={t.id}
+                className={`theme-card ${settings.theme === t.id ? "sel" : ""}`}
+                onClick={() => onChange({ theme: t.id })}
+              >
+                <span className="theme-prev" style={{ background: t.bg }}>
+                  <span className="dot" style={{ background: t.accent }} />
+                </span>
+                {t.name}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -62,6 +60,24 @@ export default function SettingsPanel({ settings, onChange, platformName }: Prop
                 onChange={(e) => onChange({ accent: e.target.value })}
               />
             </label>
+          </div>
+        </div>
+
+        <div className="set-row">
+          <div>
+            <div className="set-label">Interface size</div>
+            <div className="panel-sub" style={{ margin: 0 }}>Overall scale of the app.</div>
+          </div>
+          <div className="seg">
+            {FONT_SCALES.map((f) => (
+              <button
+                key={f.id}
+                className={settings.fontScale === f.id ? "active" : ""}
+                onClick={() => onChange({ fontScale: f.id })}
+              >
+                {f.name}
+              </button>
+            ))}
           </div>
         </div>
 
