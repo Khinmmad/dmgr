@@ -2,46 +2,46 @@
 
 > **You are a fresh agent / new session.** Read this top-to-bottom before touching anything. The TL;DR at the top is the only section you need to start a session; everything below is reference.
 
-Maintained by: **isra (Khinmmad)**. Last updated: **2026-06-14, v2.1.2 shipped & verified**.
+Maintained by: **isra (Khinmmad)**. Last updated: **2026-06-14, v2.1.3 shipped & verified**.
 
 ---
 
 ## 🔖 Session handoff — where we stopped
 
-**v2.1.2 SHIPPED & verified end-to-end this session.** 🎉 Nothing pending for the release.
-- Bluetooth module perfection (commits `432bfd5`, `fdaeeb2`): typed `BtError`, async/tokio + timeouts, daemon-down detection, parallel `info()`, `bt_scan` (10 s) + `bt_remove` (unpair), per-action in-flight guards, daemon-down banner, text trust labels (was `★`/`☆`), 6 new Linux tests.
-- Version bump `2.1.1 → 2.1.2` across `package.json`, `package-lock.json`, `tauri.conf.json`, `src-tauri/Cargo.toml` + the **dmgr-desktop** `Cargo.lock` entry (3rd-party `derive_more`/`rustc-hash` left alone). Both PKGBUILDs + the in-repo `.SRCINFO` synced to `2.1.2-1`.
-- Merged feature branch → `main`, tagged **`v2.1.2`** (at merge commit `1c44ff9`), pushed to GitHub. AUR pushed to **`2.1.2-1`** (`04f2f94`).
-- **Verified:** local build + 15 tests + frontend ✅ · two independent clean-room AUR builds (mine in `/tmp` + yay's own) both exit 0 ✅ · installed `2.1.2-1`, `pacman -Qkk` 21 files / 0 altered, libs resolve ✅ · GUI launches, window `dmgr — Device Manager` renders, **no "localhost failed" regression**, clean log ✅.
+**v2.1.3 SHIPPED & verified this session.** 🎉 Nothing pending for the release.
+- **Bluetooth device pairing** (commit `4ea35ab`): `pair(mac)` backend (`bluetoothctl pair`, Windows stub) + `bt_pair` command + `btPair()` api; the UI now splits devices into **Paired** and a new **Discovered devices** section (by the `paired` flag) with a **Pair** button. Closes the discovery flow (scan + unpair already existed).
+- Version bump `2.1.2 → 2.1.3` (commit `f876714`) across `package.json`, `package-lock.json`, `tauri.conf.json`, `src-tauri/Cargo.toml` + the **dmgr-desktop** `Cargo.lock` entry; both PKGBUILDs + both `.SRCINFO` synced to `2.1.3-1`.
+- Merged `bt-pairing` → `main`, tagged **`v2.1.3`** (at merge `64ea732`), pushed to GitHub. AUR pushed to **`2.1.3-1`** (`ca540f4`).
+- **Verified:** local build + 15 tests + frontend ✅ · clean-room AUR build from the published tarball, exit 0 ✅ · dev binary launches clean and the new "Discovered devices" / `bt_pair` code is in the built bundle ✅. The live scan→pair flow with real hardware is the user's acceptance test (BT cache was empty at release time).
+- *(Prior release this session: v2.1.2 "bluetooth perfection" — scan/unpair, async, typed errors.)*
 
-**Next concrete step:** none for the release. Optional future work = the Bluetooth backlog (see *Bluetooth module — what's left* below: event-driven updates, device-details modal, pair command, macOS). Future work branches off `main`.
+**Next concrete step:** none for the release. Remaining Bluetooth backlog (see *what's left* below): event-driven updates, device-details modal, macOS. Future work branches off `main`.
 
 ---
 
 ## Current state at a glance
 
-### Build status (v2.1.2, shipped)
-- ✅ `npm run build` (frontend) · `cargo build --release --features custom-protocol` (1m23s) · `cargo test` 15/15.
-- ✅ Clean-room AUR build verified **twice** (my `/tmp` makepkg + yay's own build) — both exit 0, well-formed `dmgr-desktop-2.1.2-1-x86_64.pkg.tar.zst`.
-- ✅ Installed `2.1.2-1` on this machine: `pacman -Qkk` 21 files / 0 altered, all libs resolve, GUI launches clean (window `dmgr — Device Manager`, no localhost regression).
+### Build status (v2.1.3, shipped)
+- ✅ `npm run build` (frontend) · `cargo build --release --features custom-protocol` (1m13s) · `cargo test` 15/15.
+- ✅ Clean-room AUR build from the published `2.1.3-1` tarball — exit 0, well-formed package.
+- ✅ Dev release binary launches clean (window `dmgr — Device Manager`, no localhost regression); the new "Discovered devices" + `bt_pair` code is confirmed in the built bundle. (Installed package on this box is still `2.1.2-1` until the user upgrades.)
 
 ### Git state — local repo (`/home/isra/projects/dmgr`)
-- **Branch:** `main` (feature branch `fix-aur-localhost-and-windows` merged in via `--no-ff`; both pushed).
-- **`main` tip:** merge commit `1c44ff9` (✅ pushed) + a `docs(checkpoint)` commit on top recording this shipped state.
-- **Tags:** `v2.1.1` at `b1df46a`, **`v2.1.2`** at `1c44ff9` — both ✅ pushed.
+- **Branch:** `main`. `bt-pairing` merged via `--no-ff` (both pushed); older `fix-aur-localhost-and-windows` is historical.
+- **`main` tip:** merge commit `64ea732` (✅ pushed) + a `docs(checkpoint)` commit on top recording this shipped state.
+- **Tags:** `v2.1.1` `b1df46a`, `v2.1.2` `1c44ff9`, **`v2.1.3`** `64ea732` — all ✅ pushed.
 - **Working tree:** clean.
-- v2.1.2 landed via: `61ce4ac` (version bump) → `47ccdbb` (in-repo `.SRCINFO` sync) → package-lock sync → merge `1c44ff9`.
+- v2.1.3 landed via: `4ea35ab` (feat: pairing) → `f876714` (version bump) → merge `64ea732`.
 
 ### Git state — AUR repo (`/home/isra/aur-dmgr-desktop`)
-- **Last commit:** `04f2f94 v2.1.2-1: bump for upstream bluetooth perfection release` (✅ pushed). Working tree clean.
-- **Current AUR package:** `2.1.2-1`.
+- **Last commit:** `ca540f4 v2.1.3-1: bump for upstream bluetooth pairing release` (✅ pushed). Working tree clean.
+- **Current AUR package:** `2.1.3-1`.
 - **Source URL:** `https://github.com/Khinmmad/dmgr/archive/refs/tags/v$pkgver.tar.gz` (auto-bumps with `pkgver`).
 
-### Files changed in the v2.1.2 cycle
-- **Version bumps (`2.1.1 → 2.1.2`):** `desktop/package.json`, `desktop/package-lock.json`, `desktop/src-tauri/Cargo.toml`, `desktop/src-tauri/tauri.conf.json`, `desktop/src-tauri/Cargo.lock` (dmgr-desktop entry).
-- **Packaging:** `packaging/dmgr-desktop/PKGBUILD` + `.SRCINFO` synced to `2.1.2-1`; `aur-dmgr-desktop/PKGBUILD` + `.SRCINFO` pushed at `2.1.2-1`.
+### Files changed in the v2.1.3 cycle
+- **Feature (`4ea35ab`):** `desktop/src-tauri/src/bluetooth.rs`, `commands.rs`, `lib.rs`, `desktop/src/api.ts`, `desktop/src/components/BluetoothPanel.tsx`.
+- **Version bump (`f876714`):** `desktop/package.json`, `desktop/package-lock.json`, `desktop/src-tauri/{Cargo.toml,Cargo.lock,tauri.conf.json}`, `packaging/dmgr-desktop/{PKGBUILD,.SRCINFO}`; AUR `PKGBUILD` + `.SRCINFO` at `2.1.3-1`.
 - **Docs:** `CHECKPOINT.md` (this file).
-- *(BT source files — `bluetooth.rs`, `commands.rs`, `lib.rs`, `BluetoothPanel.tsx`, `api.ts`, `Cargo.toml` deps — were changed earlier in commits `432bfd5`/`fdaeeb2`.)*
 
 ---
 
@@ -56,7 +56,7 @@ The v2.1.0 GitHub tag was cut *before* this feature was added to `desktop/src-ta
 `⚙` (U+2699 GEAR) and `★`/`☆` (U+2605/2606) are in the "Miscellaneous Symbols" block, which most Linux text fonts skip → render as invisible Tofu boxes. The user is on Hyprland. Emoji (`🔊`, `🔵`, `🧩`, `🎧`) come from Noto Color Emoji and work. **Pattern:** for any single-glyph UI symbol, prefer inline SVG with `currentColor` and a `size` prop. Already converted: settings button, brand, trust button.
 
 ### Bluetooth error model
-`BtError` (thiserror) serialises to its `Display` string for the TS frontend. The frontend's `invoke<…>` rejects with that string. **Stable contract** — the frontend just shows it in a toast, doesn't pattern-match on it. If the frontend ever needs typed errors, we'll switch to a structured payload (`{kind: "Timeout" | "DaemonDown" | …, message: string}`) — that's a v2.1.3 thing.
+`BtError` (thiserror) serialises to its `Display` string for the TS frontend. The frontend's `invoke<…>` rejects with that string. **Stable contract** — the frontend just shows it in a toast, doesn't pattern-match on it. If the frontend ever needs typed errors, we'll switch to a structured payload (`{kind: "Timeout" | "DaemonDown" | …, message: string}`) — a future enhancement.
 
 ### Bluetooth async + timeout pattern
 Every `bluetoothctl` (Linux) and `powershell` (Windows) call is `async` via `tokio::process::Command` and wrapped in `tokio::time::timeout`. Timeouts: `QUERY_TIMEOUT=3s`, `ACTION_TIMEOUT=8s`. Tauri 2 commands are `async fn` and inherit the runtime. **Don't** go back to `std::process::Command` — it would block the Tauri runtime and freeze the UI on a hung `bluetoothctl`.
@@ -72,7 +72,7 @@ Every `bluetoothctl` (Linux) and `powershell` (Windows) call is `async` via `tok
 |---|---|---|
 | P2 | **Event-driven updates** | Replace 5 s polling with `bluetoothctl monitor` → Tauri event `bluetooth-changed`. Needs a background task in the backend (spawn from `lib.rs::run`) and `listen("bluetooth-changed", …)` in `BluetoothPanel.tsx`. |
 | P2 | **Device details modal** | Surface battery / type / signal from `bluetoothctl info`. Battery field needs a separate check. |
-| P2 | **Pair command** | `bluetoothctl pair <mac>`. Needs a "discovered devices" section in the UI. |
+| ✅ done | **Pair command** | Shipped in v2.1.3 (`4ea35ab`): `pair(mac)` + `bt_pair` + a "Discovered devices" UI section with a Pair button. |
 | P2 | **macOS** | `IOBluetooth` via `macos-bluetooth` crate or FFI. Out of scope unless requested. |
 | P3 | **Loading skeleton** on first render | |
 | P3 | **batched info** via `bluetoothctl --json` | Requires BlueZ 5.66+ (2023). |
