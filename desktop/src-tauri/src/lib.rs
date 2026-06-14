@@ -39,6 +39,7 @@ pub fn run() {
             commands::audio_set_volume,
             commands::audio_set_mute,
             commands::bt_state,
+            commands::bt_pair,
             commands::bt_connect,
             commands::bt_disconnect,
             commands::bt_set_power,
