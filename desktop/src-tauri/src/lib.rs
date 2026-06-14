@@ -7,6 +7,8 @@ mod hotplug;
 mod kernel;
 mod platform;
 mod privileged;
+#[cfg(target_os = "windows")]
+mod winutil;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -41,6 +43,8 @@ pub fn run() {
             commands::bt_disconnect,
             commands::bt_set_power,
             commands::bt_set_trust,
+            commands::bt_remove,
+            commands::bt_scan,
             commands::capabilities,
             commands::platform_info,
             commands::advanced_details,
@@ -48,6 +52,8 @@ pub fn run() {
             commands::kernel_module_info,
             commands::kernel_module_load,
             commands::kernel_module_unload,
+            commands::open_device_manager,
+            commands::open_bluetooth_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running dmgr-desktop");

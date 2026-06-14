@@ -7,6 +7,8 @@ use dmgr_core::device::Device;
 
 #[cfg(target_os = "linux")]
 mod linux;
+#[cfg(target_os = "macos")]
+mod macos;
 #[cfg(target_os = "windows")]
 mod windows;
 
@@ -31,20 +33,24 @@ pub fn current_backend() -> Backend {
     {
         Box::new(linux::LinuxBackend)
     }
+    #[cfg(target_os = "macos")]
+    {
+        Box::new(macos::MacosBackend)
+    }
     #[cfg(target_os = "windows")]
     {
         Box::new(windows::WindowsBackend)
     }
-    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
     {
         Box::new(Unsupported)
     }
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "windows")))]
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 struct Unsupported;
 
-#[cfg(not(any(target_os = "linux", target_os = "windows")))]
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 impl DeviceBackend for Unsupported {
     fn scan(&self) -> Result<Vec<Device>, String> {
         Err("device management is not implemented for this OS yet".into())

@@ -3,7 +3,7 @@
 
 [package]
 name = "dmgr-desktop"
-version = "2.1.0"
+version = "2.1.2"
 edition = "2021"
 license = "MIT"
 authors = ["isra"]
@@ -17,6 +17,14 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 name = "dmgr-desktop"
 path = "src/main.rs"
 
+[features]
+# Production builds MUST enable this. With `custom-protocol` off, the `tauri`
+# crate compiles in dev mode (`cfg(dev)`) and the app loads `build.devUrl`
+# (http://localhost:1420) instead of the embedded frontend — the cause of the
+# "localhost failed" error in packaged builds. The Tauri CLI enables it
+# automatically; plain `cargo build` does not, so pass `--features custom-protocol`.
+custom-protocol = ["tauri/custom-protocol"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -28,10 +36,29 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 log = "0.4"
 env_logger = "0.11"
+thiserror = "1"
+tokio = { version = "1", features = ["process", "time", "macros", "rt"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 udev = "0.9"
 libc = "0.2"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+# windows-core is needed so the `#[interface]` macro's generated `windows_core::`
+# paths resolve when defining the custom IPolicyConfig interface.
+windows-core = "0.58"
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Variant",
+    "Win32_Media_Audio",
+    "Win32_Media_Audio_Endpoints",
+    "Win32_Devices_FunctionDiscovery",
+    "Win32_Devices_DeviceAndDriverInstallation",
+    "Win32_Devices_Properties",
+    "Win32_UI_Shell_PropertiesSystem",
+] }
 
 [profile.release]
 panic = "abort"

@@ -3,5 +3,10 @@
   "identifier": "default",
   "description": "Default capabilities for the dmgr desktop window",
   "windows": ["main"],
-  "permissions": ["core:default", "opener:default"]
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "core:window:allow-set-size",
+    "core:window:allow-inner-size"
+  ]
 }

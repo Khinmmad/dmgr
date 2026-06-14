@@ -1,5 +1,7 @@
 # AGENTS.md — dmgr project guide for AI agents
 
+> **Picking up an in-flight session?** Read [`CHECKPOINT.md`](./CHECKPOINT.md) first — it has the current state, pending steps, and the active work plan.
+
 ## Project overview
 
 `dmgr` is a multi-language device manager for Arch Linux, similar to Windows Device Manager. It detects and manages hardware devices (USB, PCIe, audio, input, block, GPU, network) via sysfs and udev.

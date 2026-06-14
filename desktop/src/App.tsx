@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { PhysicalSize } from "@tauri-apps/api/dpi";
 import { api } from "./api";
 import type { Capabilities, Device, Platform } from "./types";
 import { NOISE_BUSES } from "./types";
@@ -9,8 +11,19 @@ import DeviceDetail from "./components/DeviceDetail";
 import AudioPanel from "./components/AudioPanel";
 import BluetoothPanel from "./components/BluetoothPanel";
 import ModulesPanel from "./components/ModulesPanel";
+import SettingsPanel from "./components/SettingsPanel";
+import GearIcon from "./components/GearIcon";
+import type { Settings } from "./settings";
+import {
+  applySettings,
+  clearUiState,
+  loadSettings,
+  loadUiState,
+  saveSettings,
+  saveUiState,
+} from "./settings";
 
-export type View = "devices" | "audio" | "bluetooth" | "modules";
+export type View = "devices" | "audio" | "bluetooth" | "modules" | "settings";
 export type Notify = (msg: string, kind?: "ok" | "err") => void;
 
 // Internal kernel sub-nodes that aren't user-facing "devices":
@@ -30,13 +43,21 @@ export function isRelevant(d: Device): boolean {
 }
 
 export default function App() {
+  // One-time read of saved settings + (optionally) last UI state.
+  const initial = useMemo(() => {
+    const s = loadSettings();
+    const ui = s.remember ? loadUiState() : null;
+    return { settings: s, ui };
+  }, []);
+
+  const [settings, setSettings] = useState<Settings>(initial.settings);
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [showAll, setShowAll] = useState(false);
-  const [navMode, setNavMode] = useState<NavMode>("bus");
-  const [view, setView] = useState<View>("devices");
+  const [showAll, setShowAll] = useState(initial.ui?.showAll ?? false);
+  const [navMode, setNavMode] = useState<NavMode>((initial.ui?.navMode as NavMode) ?? "bus");
+  const [view, setView] = useState<View>((initial.ui?.view as View) ?? "devices");
   const [caps, setCaps] = useState<Capabilities | null>(null);
   const [platform, setPlatform] = useState<Platform | null>(null);
   const [toast, setToast] = useState<{ msg: string; kind: "ok" | "err" } | null>(null);
@@ -45,6 +66,70 @@ export default function App() {
     setToast({ msg, kind });
     window.setTimeout(() => setToast(null), 3200);
   }, []);
+
+  const updateSettings = useCallback((patch: Partial<Settings>) => {
+    setSettings((prev) => {
+      const next = { ...prev, ...patch };
+      saveSettings(next);
+      return next;
+    });
+  }, []);
+
+  // Apply theme / accent / density to the document.
+  useEffect(() => {
+    applySettings(settings);
+  }, [settings]);
+
+  // Remember the window size across sessions.
+  useEffect(() => {
+    let dispose: (() => void) | undefined;
+    let t: number | undefined;
+    try {
+      const win = getCurrentWindow();
+      try {
+        const raw = localStorage.getItem("dmgr.win");
+        if (raw) {
+          const s = JSON.parse(raw);
+          if (s && s.w > 300 && s.h > 300) {
+            win.setSize(new PhysicalSize(s.w, s.h)).catch(() => {});
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+      win
+        .onResized(({ payload }) => {
+          window.clearTimeout(t);
+          t = window.setTimeout(() => {
+            try {
+              localStorage.setItem(
+                "dmgr.win",
+                JSON.stringify({ w: payload.width, h: payload.height })
+              );
+            } catch {
+              /* ignore */
+            }
+          }, 400);
+        })
+        .then((fn) => (dispose = fn))
+        .catch(() => {});
+    } catch {
+      /* not running under Tauri */
+    }
+    return () => {
+      dispose?.();
+      window.clearTimeout(t);
+    };
+  }, []);
+
+  // Persist (or forget) the last view & filters per the "remember" preference.
+  useEffect(() => {
+    if (settings.remember) {
+      saveUiState({ view: view === "settings" ? "devices" : view, showAll, navMode });
+    } else {
+      clearUiState();
+    }
+  }, [settings.remember, view, showAll, navMode]);
 
   const refresh = useCallback(async () => {
     try {
@@ -93,10 +178,24 @@ export default function App() {
 
   const selected = devices.find((d) => d.id === selectedId) ?? null;
 
+  const isLinux = platform?.os === "linux";
+  // Audio works everywhere (PipeWire/Pulse/ALSA on Linux, Core Audio on Windows).
+  // Bluetooth shows on Linux always, and on Windows only when an adapter exists.
+  // Kernel modules are a Linux-only concept.
+  const showBluetooth = isLinux || !!caps?.bluetooth;
+  const showModules = isLinux;
+
+  // If the current view became unavailable (e.g. on Windows), fall back to devices.
+  useEffect(() => {
+    if (view === "audio" && caps && !caps.audio) setView("devices");
+    if (view === "bluetooth" && platform && !showBluetooth) setView("devices");
+    if (view === "modules" && platform && !showModules) setView("devices");
+  }, [view, caps, platform, showBluetooth, showModules]);
+
   return (
     <div className="app">
       <header className="topbar">
-        <span className="brand">⚙ dmgr</span>
+        <span className="brand"><GearIcon size={16} /> dmgr</span>
         <button
           className={`iconbtn ${view === "devices" ? "active" : ""}`}
           onClick={() => setView("devices")}
@@ -107,22 +206,26 @@ export default function App() {
           className={`iconbtn ${view === "audio" ? "active" : ""}`}
           onClick={() => setView("audio")}
           disabled={caps ? !caps.audio : false}
-          title={caps && !caps.audio ? "pactl not available" : ""}
+          title={caps && !caps.audio ? "no audio backend available" : ""}
         >
           🔊 Audio
         </button>
-        <button
-          className={`iconbtn ${view === "bluetooth" ? "active" : ""}`}
-          onClick={() => setView("bluetooth")}
-        >
-          🔵 Bluetooth
-        </button>
-        <button
-          className={`iconbtn ${view === "modules" ? "active" : ""}`}
-          onClick={() => setView("modules")}
-        >
-          🧩 Modules
-        </button>
+        {showBluetooth && (
+          <button
+            className={`iconbtn ${view === "bluetooth" ? "active" : ""}`}
+            onClick={() => setView("bluetooth")}
+          >
+            🔵 Bluetooth
+          </button>
+        )}
+        {showModules && (
+          <button
+            className={`iconbtn ${view === "modules" ? "active" : ""}`}
+            onClick={() => setView("modules")}
+          >
+            🧩 Modules
+          </button>
+        )}
         <span className="spacer" />
         {view === "devices" && (
           <>
@@ -156,8 +259,17 @@ export default function App() {
             </label>
           </>
         )}
-        <button className="iconbtn" onClick={refresh} title="Rescan">
-          ⟳
+        {view === "devices" && (
+          <button className="iconbtn" onClick={refresh} title="Rescan">
+            ⟳
+          </button>
+        )}
+        <button
+          className={`iconbtn ${view === "settings" ? "active" : ""}`}
+          onClick={() => setView("settings")}
+          title="Settings"
+        >
+          <GearIcon size={14} />
         </button>
       </header>
 
@@ -178,7 +290,12 @@ export default function App() {
           (loading ? (
             <div className="spinner">Scanning devices…</div>
           ) : selected ? (
-            <DeviceDetail device={selected} notify={notify} onChanged={refresh} />
+            <DeviceDetail
+              device={selected}
+              os={platform?.os ?? "linux"}
+              notify={notify}
+              onChanged={refresh}
+            />
           ) : (
             <div className="empty">
               Select a device from the left to view and manage it.
@@ -188,23 +305,40 @@ export default function App() {
           ))}
 
         {view === "audio" && <AudioPanel notify={notify} />}
-        {view === "bluetooth" && <BluetoothPanel notify={notify} />}
+        {view === "bluetooth" && (
+          <BluetoothPanel notify={notify} os={platform?.os ?? "linux"} />
+        )}
         {view === "modules" && <ModulesPanel notify={notify} />}
+        {view === "settings" && (
+          <SettingsPanel
+            settings={settings}
+            onChange={updateSettings}
+            platformName={platform?.distro_name}
+          />
+        )}
       </main>
 
       {platform && (
         <footer className="statusbar">
           <span title={platform.distro_name}>
-            🐧 {platform.distro_id} · {platform.session}
+            {platform.os === "windows" ? "🪟" : platform.os === "macos" ? "🍎" : "🐧"}{" "}
+            {platform.os === "windows" ? platform.distro_name : platform.distro_id}
+            {platform.session ? ` · ${platform.session}` : ""}
             {platform.gpu_nvidia ? " · nvidia" : ""}
           </span>
-          <span>· 🔊 {platform.audio_backend}</span>
+          {platform.audio_backend && platform.audio_backend !== "none" && (
+            <span>· 🔊 {platform.audio_backend}</span>
+          )}
           {!platform.can_elevate && (
             <span
               className="warn"
-              title={`Privileged actions unavailable. Install dmgr-polkit-helper + polkit. ${platform.package_hint}`}
+              title={
+                platform.os === "windows"
+                  ? "Not running as Administrator. Enable/Disable will prompt for elevation (UAC)."
+                  : `Privileged actions unavailable. Install dmgr-polkit-helper + polkit. ${platform.package_hint}`
+              }
             >
-              · ⚠ no root
+              · ⚠ {platform.os === "windows" ? "not admin" : "no root"}
             </span>
           )}
         </footer>

@@ -29,11 +29,17 @@ npm run tauri dev      # hot-reload dev window
 ```bash
 cd desktop
 npm run build                       # frontend -> dist/
-cargo build --release --manifest-path src-tauri/Cargo.toml
+cargo build --release --features custom-protocol --manifest-path src-tauri/Cargo.toml
 ./src-tauri/target/release/dmgr-desktop
 ```
 
 The frontend is embedded in the binary, so it runs standalone.
+
+> **`--features custom-protocol` is mandatory.** Without it, the `tauri` crate
+> compiles in dev mode and the binary tries to load the Vite dev server at
+> `http://localhost:1420` at runtime ("localhost failed"). `cargo tauri build`
+> enables this automatically; plain `cargo build` does not. Equivalently you can
+> run `npm run tauri build -- --no-bundle` to get just the binary.
 
 ## Packaging
 
@@ -58,19 +64,40 @@ bundles ship the GUI **plus** `dmgr-polkit-helper` and the polkit policy (via
 > Note: building the helper first is required — `tauri build` references
 > `target/release/dmgr-polkit-helper`. The AUR package handles this automatically.
 
-**Windows (experimental, unverified):**
+**Windows:**
 ```powershell
 cd desktop
 npm install
 npm run build
-cargo build --release --manifest-path src-tauri/Cargo.toml
-npm run tauri build -- --bundles nsis   # or msi
+# Standalone binary (note custom-protocol, same as Linux):
+cargo build --release --features custom-protocol --manifest-path src-tauri/Cargo.toml
+# Or the NSIS installer (the CLI sets custom-protocol for you):
+npm run tauri build -- --bundles nsis
 ```
-The Windows device backend (`src-tauri/src/backend/windows.rs`) uses PowerShell
-(`Get-PnpDevice`, `Enable/Disable-PnpDevice`). It has **not** been compiled or
-tested on Windows yet. Audio/Bluetooth/kernel-module panels are Linux-only and
-appear empty on Windows. Enable/Disable actions require running the app as
-Administrator.
+The Windows backend enumerates devices natively (SetupAPI, with a
+`Get-PnpDevice` fallback), supports Enable/Disable via UAC self-elevation,
+Core Audio (WASAPI) output/input switching with volume & mute, Bluetooth
+listing + adapter toggle, and live hotplug refresh (`CM_Register_Notification`).
+Kernel modules remain Linux-only. The installer (`…x64-setup.exe`) installs
+per-user — no Administrator needed.
+
+### Windows code signing & SmartScreen
+
+The published installer is **not code-signed**, so Windows SmartScreen shows
+an "unknown publisher" warning on first run (users can continue via
+*More info → Run anyway*). Defender's antivirus itself reports the binaries
+clean. To remove the warning:
+
+- **[SignPath Foundation](https://signpath.org/about)** — free code-signing for
+  qualifying open-source projects (CI-integrated). Best $0 option.
+- **Azure Trusted Signing** — Microsoft's signing service (~$10/month).
+- A classic **OV code-signing certificate** (~$100–400/year). Note SmartScreen
+  reputation still builds over time even when signed.
+- You can also report the file as a false positive / request reputation review:
+  <https://www.microsoft.com/en-us/wdsi/filesubmission>.
+
+`SHA256SUMS.txt` is published with each release so users can verify downloads:
+`Get-FileHash dmgr-desktop_2.1.0_x64-setup.exe -Algorithm SHA256`.
 
 ## Notes
 

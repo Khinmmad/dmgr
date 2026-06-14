@@ -13,11 +13,18 @@ function iconFor(icon: string): string {
 
 interface Props {
   notify: Notify;
+  os: string;
 }
 
-export default function BluetoothPanel({ notify }: Props) {
+export default function BluetoothPanel({ notify, os }: Props) {
+  const isWindows = os === "windows";
   const [state, setState] = useState<BtState | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
+  // Per-action in-flight guard. Prevents overlapping bluetoothctl calls when
+  // the user double-clicks or rapidly toggles. Keys: "power", "scan",
+  // "trust:<mac>", "connect:<mac>", "disconnect:<mac>", "remove:<mac>".
+  const [inFlight, setInFlight] = useState<Set<string>>(new Set());
+  // True while a scan is running, for the spinner.
+  const [scanning, setScanning] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -33,8 +40,23 @@ export default function BluetoothPanel({ notify }: Props) {
     return () => window.clearInterval(t);
   }, [load]);
 
+  const setBusy = (key: string, on: boolean) =>
+    setInFlight((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+
+  const isBusy = (key: string) => inFlight.has(key);
+
+  /**
+   * Run an action, guarding against overlapping calls (key-based), surfacing
+   * errors via the toast and refreshing state afterwards.
+   */
   const act = async (key: string, fn: () => Promise<void>, msg: string) => {
-    setBusy(key);
+    if (isBusy(key)) return;
+    setBusy(key, true);
     try {
       await fn();
       notify(msg, "ok");
@@ -42,7 +64,25 @@ export default function BluetoothPanel({ notify }: Props) {
     } catch (e) {
       notify(String(e), "err");
     } finally {
-      setBusy(null);
+      setBusy(key, false);
+    }
+  };
+
+  const onScan = async () => {
+    if (scanning || isBusy("scan")) return;
+    setScanning(true);
+    setBusy("scan", true);
+    try {
+      // 10 s is a good default: long enough to catch most devices, short
+      // enough that the radio isn't pegged.
+      await api.btScan(10);
+      notify("Scan complete", "ok");
+      await load();
+    } catch (e) {
+      notify(String(e), "err");
+    } finally {
+      setScanning(false);
+      setBusy("scan", false);
     }
   };
 
@@ -51,12 +91,21 @@ export default function BluetoothPanel({ notify }: Props) {
       <div>
         <div className="panel-title">🔵 Bluetooth</div>
         <div className="empty">
-          <code>bluetoothctl</code> not found. Install <code>bluez-utils</code> to manage
-          Bluetooth devices.
+          {isWindows ? (
+            <>No Bluetooth adapter found.</>
+          ) : (
+            <>
+              <code>bluetoothctl</code> not found. Install <code>bluez-utils</code> to manage
+              Bluetooth devices.
+            </>
+          )}
         </div>
       </div>
     );
   }
+
+  // If the daemon is up but the controller isn't, surface that distinctly.
+  const daemonDown = state?.available && !state.powered && state.devices.length === 0;
 
   const devices = state?.devices ?? [];
   const sorted = [...devices].sort(
@@ -68,7 +117,11 @@ export default function BluetoothPanel({ notify }: Props) {
       <div className="row between">
         <div>
           <div className="panel-title">🔵 Bluetooth</div>
-          <div className="panel-sub">Connect and manage paired Bluetooth devices.</div>
+          <div className="panel-sub">
+            {isWindows
+              ? "Paired devices and adapter power. Pair or connect from Windows Settings."
+              : "Connect and manage paired Bluetooth devices."}
+          </div>
         </div>
         <div className="row" style={{ gap: 10 }}>
           <span className="panel-sub" style={{ margin: 0 }}>
@@ -76,7 +129,7 @@ export default function BluetoothPanel({ notify }: Props) {
           </span>
           <button
             className={`switch ${state?.powered ? "on" : ""}`}
-            disabled={busy === "power"}
+            disabled={isBusy("power")}
             onClick={() =>
               act(
                 "power",
@@ -85,14 +138,43 @@ export default function BluetoothPanel({ notify }: Props) {
               )
             }
           />
-          <button className="iconbtn" onClick={load} title="Refresh">
+          {!isWindows && (
+            <button
+              className="iconbtn"
+              disabled={scanning}
+              onClick={onScan}
+              title="Discover nearby devices for 10s"
+            >
+              {scanning ? "Scanning…" : "Scan"}
+            </button>
+          )}
+          {isWindows && (
+            <button
+              className="iconbtn"
+              onClick={() => api.openBluetoothSettings().catch((e) => notify(String(e), "err"))}
+              title="Open Windows Bluetooth settings (pair / connect)"
+            >
+              ⚙ Settings
+            </button>
+          )}
+          <button className="iconbtn" onClick={load} title="Refresh" disabled={scanning}>
             ⟳
           </button>
         </div>
       </div>
 
+      {daemonDown && (
+        <div className="card" style={{ color: "var(--subtext)" }}>
+          Bluetooth adapter is not responding. Make sure <code>bluetoothd</code> is running:
+          <br />
+          <code>sudo systemctl enable --now bluetooth</code>
+        </div>
+      )}
+
       <div className="section-h">Paired devices</div>
-      {sorted.length === 0 && <div className="empty">No paired devices.</div>}
+      {sorted.length === 0 && !daemonDown && (
+        <div className="empty">No paired devices. Click "Scan" to discover nearby ones.</div>
+      )}
       {sorted.map((d) => (
         <div key={d.mac} className={`media-item ${d.connected ? "active" : ""}`}>
           <span className="ico">{iconFor(d.icon)}</span>
@@ -104,38 +186,69 @@ export default function BluetoothPanel({ notify }: Props) {
             </div>
           </div>
 
-          <button
-            className="btn ghost"
-            disabled={busy === d.mac}
-            onClick={() =>
-              act(
-                d.mac,
-                () => api.btSetTrust(d.mac, !d.trusted),
-                d.trusted ? "Untrusted" : "Trusted"
-              )
-            }
-          >
-            {d.trusted ? "★" : "☆"}
-          </button>
-
-          {d.connected ? (
-            <button
-              className="btn danger"
-              disabled={busy === d.mac}
-              onClick={() =>
-                act(d.mac, () => api.btDisconnect(d.mac), `Disconnected ${d.name}`)
-              }
-            >
-              Disconnect
-            </button>
+          {isWindows ? (
+            // Windows: read-only list (connect/disconnect is managed by the OS).
+            <span className={d.connected ? "badge-active" : "panel-sub"} style={{ margin: 0 }}>
+              {d.connected ? "● Connected" : "Paired"}
+            </span>
           ) : (
-            <button
-              className="btn primary"
-              disabled={busy === d.mac}
-              onClick={() => act(d.mac, () => api.btConnect(d.mac), `Connected ${d.name}`)}
-            >
-              Connect
-            </button>
+            <>
+              <button
+                className="btn ghost"
+                disabled={isBusy(`trust:${d.mac}`)}
+                onClick={() =>
+                  act(
+                    `trust:${d.mac}`,
+                    () => api.btSetTrust(d.mac, !d.trusted),
+                    d.trusted ? "Untrusted" : "Trusted"
+                  )
+                }
+                title={d.trusted ? "Untrust this device" : "Trust this device"}
+              >
+                {d.trusted ? "Trusted" : "Trust"}
+              </button>
+
+              {d.connected ? (
+                <button
+                  className="btn danger"
+                  disabled={isBusy(`disconnect:${d.mac}`)}
+                  onClick={() =>
+                    act(
+                      `disconnect:${d.mac}`,
+                      () => api.btDisconnect(d.mac),
+                      `Disconnected ${d.name}`
+                    )
+                  }
+                >
+                  Disconnect
+                </button>
+              ) : (
+                <button
+                  className="btn primary"
+                  disabled={isBusy(`connect:${d.mac}`)}
+                  onClick={() =>
+                    act(
+                      `connect:${d.mac}`,
+                      () => api.btConnect(d.mac),
+                      `Connected ${d.name}`
+                    )
+                  }
+                >
+                  Connect
+                </button>
+              )}
+
+              <button
+                className="btn ghost"
+                disabled={isBusy(`remove:${d.mac}`)}
+                onClick={() =>
+                  act(`remove:${d.mac}`, () => api.btRemove(d.mac), `Removed ${d.name}`)
+                }
+                title="Unpair (forget) this device"
+              >
+                Unpair
+              </button>
+            </>
           )}
         </div>
       ))}

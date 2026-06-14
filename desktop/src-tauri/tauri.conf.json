@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "dmgr-desktop",
-  "version": "2.1.0",
+  "version": "2.1.2",
   "identifier": "org.dmgr.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -28,8 +28,16 @@
     "active": true,
     "targets": ["deb", "rpm", "appimage"],
     "category": "Utility",
-    "shortDescription": "Device manager for Linux",
-    "longDescription": "A modern device manager for Linux: browse and manage devices, drivers, audio outputs, Bluetooth and kernel modules. Built with Tauri + React.",
+    "publisher": "Khinmmad",
+    "copyright": "Copyright © 2026 isra (Khinmmad) — MIT License",
+    "licenseFile": "../../LICENSE",
+    "shortDescription": "Device manager for Linux & Windows",
+    "longDescription": "A modern device manager: browse and manage devices, drivers, audio outputs, Bluetooth and kernel modules. Built with Tauri + React.",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -2,6 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   AudioDevice,
+  BtDevice,
   BtState,
   Capabilities,
   DetailItem,
@@ -45,6 +46,9 @@ export const api = {
   btSetPower: (on: boolean) => invoke<void>("bt_set_power", { on }),
   btSetTrust: (mac: string, trust: boolean) =>
     invoke<void>("bt_set_trust", { mac, trust }),
+  btRemove: (mac: string) => invoke<void>("bt_remove", { mac }),
+  btScan: (secs?: number) =>
+    invoke<BtDevice[]>("bt_scan", { secs: secs ?? null }),
 
   // advanced details
   advancedDetails: (path: string, bus: string) =>
@@ -62,4 +66,8 @@ export const api = {
   // meta
   capabilities: () => invoke<Capabilities>("capabilities"),
   platformInfo: () => invoke<Platform>("platform_info"),
+
+  // windows shortcuts
+  openDeviceManager: () => invoke<void>("open_device_manager"),
+  openBluetoothSettings: () => invoke<void>("open_bluetooth_settings"),
 };

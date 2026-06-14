@@ -3,6 +3,7 @@
 //! adapts instead of assuming Arch/systemd/Nvidia/Wayland.
 
 use serde::Serialize;
+#[cfg(not(target_os = "windows"))]
 use std::path::Path;
 
 #[derive(Serialize, Clone)]
@@ -17,6 +18,7 @@ pub struct Platform {
     pub package_hint: String,
 }
 
+#[cfg(not(target_os = "windows"))]
 pub fn session_type() -> String {
     let xdg = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
     if std::env::var_os("WAYLAND_DISPLAY").is_some() || xdg == "wayland" {
@@ -28,6 +30,7 @@ pub fn session_type() -> String {
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 pub fn has_nvidia() -> bool {
     Path::new("/sys/module/nvidia").exists()
         || Path::new("/proc/driver/nvidia").exists()
@@ -40,6 +43,7 @@ pub fn has_nvidia() -> bool {
 }
 
 /// (ID, PRETTY_NAME) from /etc/os-release.
+#[cfg(not(target_os = "windows"))]
 pub fn os_release() -> (String, String) {
     let text = std::fs::read_to_string("/etc/os-release").unwrap_or_default();
     let get = |k: &str| {
@@ -52,6 +56,7 @@ pub fn os_release() -> (String, String) {
     )
 }
 
+#[cfg(not(target_os = "windows"))]
 pub fn package_hint(distro_id: &str) -> String {
     match distro_id {
         "arch" | "endeavouros" | "manjaro" | "cachyos" | "garuda" => {
@@ -73,17 +78,61 @@ pub fn package_hint(distro_id: &str) -> String {
 }
 
 pub fn detect() -> Platform {
-    let (id, name) = os_release();
-    let hint = package_hint(&id);
-    Platform {
-        os: std::env::consts::OS.to_string(),
-        distro_id: id,
-        distro_name: name,
-        session: session_type(),
-        gpu_nvidia: has_nvidia(),
-        audio_backend: crate::audio::backend_name().to_string(),
-        can_elevate: crate::privileged::can_elevate(),
-        package_hint: hint,
+    #[cfg(target_os = "windows")]
+    {
+        let (name, build) = windows::os_info();
+        return Platform {
+            os: "windows".into(),
+            distro_id: "windows".into(),
+            distro_name: name,
+            session: build, // e.g. "build 26200" — shown where Linux shows the session
+            gpu_nvidia: false, // no DMABUF workaround needed; not worth a PnP query
+            audio_backend: crate::audio::backend_name().to_string(),
+            can_elevate: crate::privileged::can_elevate(),
+            package_hint: "winget install <pkg>".into(),
+        };
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let (id, name) = os_release();
+        let hint = package_hint(&id);
+        Platform {
+            os: std::env::consts::OS.to_string(),
+            distro_id: id,
+            distro_name: name,
+            session: session_type(),
+            gpu_nvidia: has_nvidia(),
+            audio_backend: crate::audio::backend_name().to_string(),
+            can_elevate: crate::privileged::can_elevate(),
+            package_hint: hint,
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+mod windows {
+    use std::process::Command;
+
+    /// (caption, build) from CIM, e.g. ("Windows 11 Pro", "build 26200").
+    /// Falls back to plain "Windows" if the query fails.
+    pub fn os_info() -> (String, String) {
+        let ps = "$o = Get-CimInstance Win32_OperatingSystem; \
+                  \"$($o.Caption.Trim())`t$($o.BuildNumber)\"";
+        let out = Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", ps])
+            .output();
+        if let Ok(out) = out {
+            if out.status.success() {
+                let s = String::from_utf8_lossy(&out.stdout);
+                if let Some((caption, build)) = s.trim().split_once('\t') {
+                    let caption = caption.trim_start_matches("Microsoft ").trim();
+                    if !caption.is_empty() {
+                        return (caption.to_string(), format!("build {}", build.trim()));
+                    }
+                }
+            }
+        }
+        ("Windows".into(), String::new())
     }
 }
 
@@ -102,7 +151,7 @@ pub fn apply_webkit_workarounds() {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "windows")))]
 mod tests {
     use super::package_hint;
 

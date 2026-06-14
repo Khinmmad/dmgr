@@ -1,6 +1,7 @@
 //! Kernel module management — list (/proc/modules), info (modinfo), load/unload
 //! (modprobe via the privileged path). Linux-only; something Windows can't do.
 
+#[cfg(not(windows))]
 use crate::privileged;
 use serde::Serialize;
 
@@ -90,12 +91,26 @@ pub fn info(name: &str) -> ModuleInfo {
 
 pub fn load(name: &str) -> Result<(), String> {
     validate(name)?;
-    privileged::run_pkexec("modprobe", &[name])
+    #[cfg(not(windows))]
+    {
+        privileged::run_pkexec("modprobe", &[name])
+    }
+    #[cfg(windows)]
+    {
+        Err("kernel modules are Linux-only".into())
+    }
 }
 
 pub fn unload(name: &str) -> Result<(), String> {
     validate(name)?;
-    privileged::run_pkexec("modprobe", &["-r", name])
+    #[cfg(not(windows))]
+    {
+        privileged::run_pkexec("modprobe", &["-r", name])
+    }
+    #[cfg(windows)]
+    {
+        Err("kernel modules are Linux-only".into())
+    }
 }
 
 fn validate(name: &str) -> Result<(), String> {

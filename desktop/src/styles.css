@@ -13,8 +13,51 @@
   --red: #f38ba8;
   --peach: #fab387;
   --teal: #94e2d5;
+  --accent: #89b4fa; /* overridden at runtime by the accent setting */
   --radius: 12px;
   --radius-sm: 8px;
+}
+
+/* Light theme (Catppuccin Latte). Accent (--blue) is set inline by settings. */
+:root[data-theme="light"] {
+  --bg: #eff1f5;
+  --bg-alt: #e6e9ef;
+  --surface: #dce0e8;
+  --surface-2: #ccd0da;
+  --overlay: #8c8fa1;
+  --text: #4c4f69;
+  --subtext: #5c5f77;
+  --mauve: #8839ef;
+  --green: #40a02b;
+  --yellow: #df8e1d;
+  --red: #d20f39;
+  --peach: #fe640b;
+  --teal: #179299;
+}
+
+/* Compact density: tighter spacing and slightly smaller text. */
+:root[data-density="compact"] body {
+  font-size: 12.5px;
+}
+:root[data-density="compact"] .app {
+  grid-template-rows: 46px 1fr;
+}
+:root[data-density="compact"] .content {
+  padding: 14px 18px;
+}
+:root[data-density="compact"] .card {
+  padding: 11px 13px;
+  margin-bottom: 10px;
+}
+:root[data-density="compact"] .media-item {
+  padding: 9px 12px;
+  margin-bottom: 7px;
+}
+:root[data-density="compact"] .dev-item {
+  padding: 5px 8px 5px 14px;
+}
+:root[data-density="compact"] .cat-header {
+  padding: 5px 8px;
 }
 
 * {
@@ -448,4 +491,82 @@ button {
 /* keep sidebar content clear of the fixed status bar */
 .sidebar {
   padding-bottom: 34px;
+}
+
+/* ── Settings panel ─────────────────────────────────────────────────────────── */
+
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--bg-alt);
+}
+.set-row:last-child {
+  border-bottom: none;
+}
+.set-label {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+/* segmented control (theme / density) */
+.seg {
+  display: inline-flex;
+  background: var(--bg-alt);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  gap: 3px;
+  flex: none;
+}
+.seg button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  color: var(--subtext);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.seg button.active {
+  background: var(--blue);
+  color: var(--bg);
+}
+
+/* accent color swatches */
+.swatches {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: none;
+}
+.swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.1s;
+}
+.swatch:hover {
+  transform: scale(1.12);
+}
+.swatch.sel {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.swatch.custom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  font-size: 13px;
+  overflow: hidden;
+}
+.swatch.custom input[type="color"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
