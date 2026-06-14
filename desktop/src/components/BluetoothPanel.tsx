@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Notify } from "../App";
 import { api } from "../api";
+import { useAliases } from "../aliases";
 import type { BtDevice, BtState } from "../types";
 
 function iconFor(icon: string): string {
@@ -38,6 +39,7 @@ export default function BluetoothPanel({ notify, os }: Props) {
   const [scanning, setScanning] = useState(false);
   // mac of the device whose details modal is open (null = closed).
   const [detailMac, setDetailMac] = useState<string | null>(null);
+  const { map: aliases, name: aliasName, rename } = useAliases();
 
   const load = useCallback(async () => {
     try {
@@ -197,7 +199,7 @@ export default function BluetoothPanel({ notify, os }: Props) {
         <div key={d.mac} className={`media-item ${d.connected ? "active" : ""}`}>
           <span className="ico">{iconFor(d.icon)}</span>
           <div className="meta">
-            <div className="name">{d.name}</div>
+            <div className="name">{aliasName(`bt:${d.mac}`, d.name)}</div>
             <div className="desc">
               {d.mac} · {d.connected ? "connected" : d.paired ? "paired" : "—"}
               {d.trusted ? " · auto-connect" : ""}
@@ -272,7 +274,7 @@ export default function BluetoothPanel({ notify, os }: Props) {
             <div key={d.mac} className="media-item">
               <span className="ico">{iconFor(d.icon)}</span>
               <div className="meta">
-                <div className="name">{d.name}</div>
+                <div className="name">{aliasName(`bt:${d.mac}`, d.name)}</div>
                 <div className="desc">{d.mac} · not paired</div>
               </div>
               <button
@@ -297,7 +299,7 @@ export default function BluetoothPanel({ notify, os }: Props) {
               <div className="row" style={{ gap: 12 }}>
                 <span style={{ fontSize: 30 }}>{iconFor(detail.icon)}</span>
                 <div className="panel-title" style={{ margin: 0 }}>
-                  {detail.name}
+                  {aliasName(`bt:${detail.mac}`, detail.name)}
                 </div>
               </div>
               <button className="iconbtn" onClick={() => setDetailMac(null)} title="Close">
@@ -335,6 +337,25 @@ export default function BluetoothPanel({ notify, os }: Props) {
                 )}
               </tbody>
             </table>
+
+            <div className="set-row">
+              <div>
+                <div className="set-label">Custom name</div>
+                <div className="panel-sub" style={{ margin: 0 }}>
+                  Shown instead of the device's name.
+                </div>
+              </div>
+              <input
+                key={detail.mac}
+                className="prop-input"
+                defaultValue={aliases[`bt:${detail.mac}`] ?? ""}
+                placeholder={detail.name}
+                onBlur={(e) => rename(`bt:${detail.mac}`, e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                }}
+              />
+            </div>
 
             {!isWindows && (
               <div className="set-row" style={{ borderBottom: "none" }}>

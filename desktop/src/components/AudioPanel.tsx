@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Notify } from "../App";
 import { api } from "../api";
+import { useAliases } from "../aliases";
 import type { AudioDevice } from "../types";
 
 const KIND_ICON: Record<AudioDevice["kind"], string> = {
@@ -19,6 +20,8 @@ export default function AudioPanel({ notify }: Props) {
   const [outputs, setOutputs] = useState<AudioDevice[]>([]);
   const [inputs, setInputs] = useState<AudioDevice[]>([]);
   const [busy, setBusy] = useState(false);
+  const [editKey, setEditKey] = useState<string | null>(null);
+  const { map: aliases, name: aliasName, rename } = useAliases();
 
   const load = useCallback(async () => {
     try {
@@ -101,7 +104,30 @@ export default function AudioPanel({ notify }: Props) {
         <div key={d.name} className={`media-item ${d.is_default ? "active" : ""}`}>
           <span className="ico">{KIND_ICON[d.kind]}</span>
           <div className="meta">
-            <div className="name">{d.description}</div>
+            {editKey === `audio:${d.name}` ? (
+              <input
+                className="prop-input"
+                autoFocus
+                defaultValue={aliases[`audio:${d.name}`] ?? ""}
+                placeholder={d.description}
+                onBlur={(e) => {
+                  rename(`audio:${d.name}`, e.target.value);
+                  setEditKey(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                  if (e.key === "Escape") setEditKey(null);
+                }}
+              />
+            ) : (
+              <div
+                className="name"
+                title="Double-click to rename"
+                onDoubleClick={() => setEditKey(`audio:${d.name}`)}
+              >
+                {aliasName(`audio:${d.name}`, d.description)}
+              </div>
+            )}
             <div className="desc">
               {d.kind} · {d.state || "—"}
               {d.volume != null ? ` · ${d.volume}%` : ""}
@@ -148,7 +174,30 @@ export default function AudioPanel({ notify }: Props) {
             <div key={d.name} className={`media-item ${d.is_default ? "active" : ""}`}>
               <span className="ico">🎙</span>
               <div className="meta">
-                <div className="name">{d.description}</div>
+                {editKey === `audio:${d.name}` ? (
+              <input
+                className="prop-input"
+                autoFocus
+                defaultValue={aliases[`audio:${d.name}`] ?? ""}
+                placeholder={d.description}
+                onBlur={(e) => {
+                  rename(`audio:${d.name}`, e.target.value);
+                  setEditKey(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                  if (e.key === "Escape") setEditKey(null);
+                }}
+              />
+            ) : (
+              <div
+                className="name"
+                title="Double-click to rename"
+                onDoubleClick={() => setEditKey(`audio:${d.name}`)}
+              >
+                {aliasName(`audio:${d.name}`, d.description)}
+              </div>
+            )}
                 <div className="desc">
                   {d.kind} · {d.state || "—"}
                 </div>
