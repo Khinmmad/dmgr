@@ -68,6 +68,8 @@ export interface BtDevice {
   connected: boolean;
   trusted: boolean;
   icon: string;
+  battery: number | null;
+  rssi: number | null;
 }
 
 export interface BtState {

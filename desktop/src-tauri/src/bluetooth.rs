@@ -20,6 +20,8 @@ pub struct BtDevice {
     pub connected: bool,
     pub trusted: bool,
     pub icon: String, // audio-card, input-keyboard, phone, ...
+    pub battery: Option<u8>, // 0-100, when the device reports it
+    pub rssi: Option<i16>,   // signal strength in dBm, when in range
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -220,7 +222,36 @@ mod unix_impl {
             connected: yes("Connected:"),
             trusted: yes("Trusted:"),
             icon: field("Icon:").unwrap_or_default(),
+            battery: field("Battery Percentage:").and_then(|v| parse_paren_num(&v)),
+            rssi: field("RSSI:").and_then(|v| parse_signed(&v)),
         }
+    }
+
+    /// Battery prints as `0x55 (85)` — take the decimal in parens, falling back
+    /// to a hex `0xNN` or a bare decimal.
+    fn parse_paren_num(v: &str) -> Option<u8> {
+        if let Some(inner) = paren_inner(v) {
+            return inner.parse::<u8>().ok();
+        }
+        if let Some(hex) = v.trim().strip_prefix("0x") {
+            return u8::from_str_radix(hex, 16).ok();
+        }
+        v.trim().parse::<u8>().ok()
+    }
+
+    /// RSSI comes as `-50` or `0xffffffce (-50)` — prefer the parenthesised
+    /// signed decimal.
+    fn parse_signed(v: &str) -> Option<i16> {
+        if let Some(inner) = paren_inner(v) {
+            return inner.parse::<i16>().ok();
+        }
+        v.split_whitespace().next().and_then(|t| t.parse::<i16>().ok())
+    }
+
+    fn paren_inner(v: &str) -> Option<&str> {
+        let start = v.find('(')?;
+        let end = v[start + 1..].find(')')?;
+        Some(v[start + 1..start + 1 + end].trim())
     }
 
     /// Pair (bond) with a discovered device. Works for "Just Works" devices
@@ -391,6 +422,8 @@ Device AA:BB:CC:DD:EE:FF
 \tTrusted: yes
 \tConnected: yes
 \tIcon: audio-card
+\tBattery Percentage: 0x55 (85)
+\tRSSI: -42
 ";
 
         #[test]
@@ -402,6 +435,8 @@ Device AA:BB:CC:DD:EE:FF
             assert!(d.trusted);
             assert!(d.connected);
             assert_eq!(d.icon, "audio-card");
+            assert_eq!(d.battery, Some(85));
+            assert_eq!(d.rssi, Some(-42));
         }
 
         #[test]
@@ -410,6 +445,15 @@ Device AA:BB:CC:DD:EE:FF
             assert_eq!(d.name, "AA:BB:CC:DD:EE:FF");
             assert!(!d.paired);
             assert!(!d.connected);
+            assert_eq!(d.battery, None);
+            assert_eq!(d.rssi, None);
+        }
+
+        #[test]
+        fn battery_parses_hex_only_form() {
+            // Some BlueZ builds omit the parenthesised decimal.
+            let d = parse_info("Device X\n\tBattery Percentage: 0x64\n", "X");
+            assert_eq!(d.battery, Some(100));
         }
     }
 }
@@ -667,6 +711,8 @@ mod win_impl {
                 paired: true,
                 connected,
                 trusted: false,
+                battery: None,
+                rssi: None,
             });
         }
     }

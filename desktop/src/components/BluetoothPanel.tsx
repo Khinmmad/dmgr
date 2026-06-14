@@ -11,6 +11,16 @@ function iconFor(icon: string): string {
   return "🔵";
 }
 
+function typeLabel(icon: string): string {
+  if (icon.includes("audio")) return "Audio";
+  if (icon.includes("input-keyboard")) return "Keyboard";
+  if (icon.includes("input-mouse")) return "Mouse";
+  if (icon.includes("input-gaming")) return "Controller";
+  if (icon.includes("phone")) return "Phone";
+  if (icon.includes("computer")) return "Computer";
+  return "Device";
+}
+
 interface Props {
   notify: Notify;
   os: string;
@@ -26,6 +36,8 @@ export default function BluetoothPanel({ notify, os }: Props) {
   const [inFlight, setInFlight] = useState<Set<string>>(new Set());
   // True while a scan is running, for the spinner.
   const [scanning, setScanning] = useState(false);
+  // mac of the device whose details modal is open (null = closed).
+  const [detailMac, setDetailMac] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -115,6 +127,8 @@ export default function BluetoothPanel({ notify, os }: Props) {
   // Discovered = seen during a scan but not yet paired (Linux only; on Windows
   // every listed device is already paired and discovery is the OS's job).
   const discovered = devices.filter((d) => !d.paired).sort(byPreference);
+  // Looked up live from state so the modal reflects refreshes (battery, trust…).
+  const detail = detailMac ? devices.find((d) => d.mac === detailMac) ?? null : null;
 
   return (
     <div>
@@ -186,7 +200,8 @@ export default function BluetoothPanel({ notify, os }: Props) {
             <div className="name">{d.name}</div>
             <div className="desc">
               {d.mac} · {d.connected ? "connected" : d.paired ? "paired" : "—"}
-              {d.trusted ? " · trusted" : ""}
+              {d.trusted ? " · auto-connect" : ""}
+              {d.battery != null ? ` · 🔋 ${d.battery}%` : ""}
             </div>
           </div>
 
@@ -199,17 +214,10 @@ export default function BluetoothPanel({ notify, os }: Props) {
             <>
               <button
                 className="btn ghost"
-                disabled={isBusy(`trust:${d.mac}`)}
-                onClick={() =>
-                  act(
-                    `trust:${d.mac}`,
-                    () => api.btSetTrust(d.mac, !d.trusted),
-                    d.trusted ? "Untrusted" : "Trusted"
-                  )
-                }
-                title={d.trusted ? "Untrust this device" : "Trust this device"}
+                onClick={() => setDetailMac(d.mac)}
+                title="Device details (battery, signal, auto-connect)"
               >
-                {d.trusted ? "Trusted" : "Trust"}
+                Details
               </button>
 
               {d.connected ? (
@@ -280,6 +288,77 @@ export default function BluetoothPanel({ notify, os }: Props) {
             </div>
           ))}
         </>
+      )}
+
+      {detail && (
+        <div className="modal-backdrop" onClick={() => setDetailMac(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="row between">
+              <div className="row" style={{ gap: 12 }}>
+                <span style={{ fontSize: 30 }}>{iconFor(detail.icon)}</span>
+                <div className="panel-title" style={{ margin: 0 }}>
+                  {detail.name}
+                </div>
+              </div>
+              <button className="iconbtn" onClick={() => setDetailMac(null)} title="Close">
+                ✕
+              </button>
+            </div>
+
+            <table className="prop-table" style={{ marginTop: 14 }}>
+              <tbody>
+                <tr>
+                  <td className="k">Address</td>
+                  <td className="v">{detail.mac}</td>
+                </tr>
+                <tr>
+                  <td className="k">Type</td>
+                  <td className="v">{typeLabel(detail.icon)}</td>
+                </tr>
+                <tr>
+                  <td className="k">Status</td>
+                  <td className="v">
+                    {detail.connected ? "Connected" : detail.paired ? "Paired" : "Discovered"}
+                  </td>
+                </tr>
+                {detail.battery != null && (
+                  <tr>
+                    <td className="k">Battery</td>
+                    <td className="v">🔋 {detail.battery}%</td>
+                  </tr>
+                )}
+                {detail.rssi != null && (
+                  <tr>
+                    <td className="k">Signal</td>
+                    <td className="v">{detail.rssi} dBm</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            {!isWindows && (
+              <div className="set-row" style={{ borderBottom: "none" }}>
+                <div>
+                  <div className="set-label">Auto-connect</div>
+                  <div className="panel-sub" style={{ margin: 0 }}>
+                    Trust this device so it reconnects automatically.
+                  </div>
+                </div>
+                <button
+                  className={`switch ${detail.trusted ? "on" : ""}`}
+                  disabled={isBusy(`trust:${detail.mac}`)}
+                  onClick={() =>
+                    act(
+                      `trust:${detail.mac}`,
+                      () => api.btSetTrust(detail.mac, !detail.trusted),
+                      detail.trusted ? "Auto-connect off" : "Auto-connect on"
+                    )
+                  }
+                />
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
