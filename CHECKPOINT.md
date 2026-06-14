@@ -1,169 +1,160 @@
-# CHECKPOINT — dmgr-desktop session
+# CHECKPOINT — dmgr-desktop
 
-> **Read this first** if you are a fresh agent / new session picking up dmgr-desktop work.
-> Maintained by: isra (Khinmmad). Last updated: 2026-06-14 (post-Bluetooth work).
+> **You are a fresh agent / new session.** Read this top-to-bottom before touching anything. The TL;DR at the top is the only section you need to start a session; everything below is reference.
 
----
-
-## TL;DR
-
-- AUR package **`dmgr-desktop 2.1.1-1`** is live (user pushed v2.1.1, agent updated AUR: `pkgver=2.1.1 pkgrel=1`, dropped the sed patch).
-- Local branch **`fix-aur-localhost-and-windows`** has 4 commits past v2.1.1 — GearIcon fix + Bluetooth perfection (async, timeouts, typed errors, scan, unpair, in-flight guards, daemon-down banner).
-- **NOT YET SHIPPED** to GitHub/AUR: those 2 BT commits. User runs `yay -S dmgr-desktop` to get 2.1.1-1 (settings button visible). The BT work is in the local branch and ready to be tagged as v2.1.2.
-- **NEXT**: user cuts v2.1.2 (or merges branch + tags), agent updates AUR to `2.1.2-1`.
+Maintained by: **isra (Khinmmad)**. Last updated: **2026-06-14, end of session**.
 
 ---
 
-## Current state
+## 🔖 Session handoff — where we stopped
+
+**Done this session, shipped to AUR:**
+- `dmgr-desktop 2.1.1-1` — fixes the missing "settings" button (inline SVG `GearIcon` for systems whose font lacks U+2699 `⚙`).
+
+**Done this session, in local branch `fix-aur-localhost-and-windows` (not yet tagged/pushed):**
+- Bluetooth module perfection (commits `432bfd5`, `fdaeeb2`):
+  - typed `BtError` enum, async/tokio subprocess, timeouts, daemon-down detection, parallel `info()` calls, 6 new Linux unit tests
+  - `bt_scan` (10 s discovery) + `bt_remove` (unpair) backend + frontend buttons
+  - per-action in-flight guards, daemon-down banner, text-based trust labels (was `★`/`☆`)
+
+**Next concrete step (owned by USER, then AGENT):**
+1. User tags the local branch as `v2.1.2` and pushes (commands below).
+2. Agent (or user) updates AUR PKGBUILD to `pkgver=2.1.2 pkgrel=1` and pushes.
+3. User runs `yay -Syu dmgr-desktop` to install.
+
+```bash
+# USER step
+cd /home/isra/projects/dmgr
+git checkout main && git merge --no-ff fix-aur-localhost-and-windows   # optional
+git tag -a v2.1.2 -m "dmgr-desktop 2.1.2 (bluetooth perfection)"
+git push origin main fix-aur-localhost-and-windows v2.1.2
+```
+
+After `v2.1.2` is on GitHub, the AUR update is a 30-second job:
+```bash
+# Edit /home/isra/aur-dmgr-desktop/PKGBUILD: pkgver=2.1.1 → 2.1.1, pkgrel=1 (unchanged shape).
+# Wait — pkgver becomes 2.1.2. Then:
+cd /home/isra/aur-dmgr-desktop
+makepkg --printsrcinfo > .SRCINFO
+git add PKGBUILD .SRCINFO
+git commit -m "v2.1.2-1: bump for upstream bluetooth perfection release"
+git push origin master
+```
+
+---
+
+## Current state at a glance
 
 ### Build status
-- ✅ `npm run build` passes.
+- ✅ `npm run build` (frontend) passes.
 - ✅ `cargo build --release --features custom-protocol` passes.
-- ✅ AUR `2.1.1-1` builds and installs (verified locally).
-- ✅ 15 lib tests pass (6 new BT Linux tests + 9 existing).
-- ✅ Frontend typecheck + vite build clean.
+- ✅ 15 lib tests pass (6 new BT Linux tests + 9 pre-existing).
+- ✅ AUR `2.1.1-1` builds and installs cleanly (verified by local `makepkg`).
 
-### Git state (local repo)
-- Branch: `fix-aur-localhost-and-windows`
-- Commits past v2.1.1:
-  - `b1df46a` — GearIcon fix (now in v2.1.1)
-  - `095345b` — CHECKPOINT.md + AGENTS.md link
-  - `432bfd5` — BT Phase 1: async + timeouts + typed errors + Linux tests
-  - `fdaeeb2` — BT Phase 2+3: scan, unpair, daemon banner, in-flight guards
-- Working tree: clean.
+### Git state — local repo (`/home/isra/projects/dmgr`)
+- **Branch:** `fix-aur-localhost-and-windows`
+- **HEAD:** `8fd6074 docs(checkpoint): mark BT phases 1-2-3 done, list remaining work`
+- **Tagged:** `v2.1.1` at `b1df46a` (✅ pushed to GitHub by user earlier this session)
+- **Working tree:** clean
+- **Commits past v2.1.1 (5 total):**
+  | sha | subject |
+  |---|---|
+  | `095345b` | docs: add CHECKPOINT.md + link from AGENTS.md |
+  | `432bfd5` | refactor(bluetooth): async + timeouts + typed errors + Linux tests |
+  | `fdaeeb2` | feat(bluetooth): unpair, scan, daemon-down banner, per-action guards |
+  | `8fd6074` | docs(checkpoint): mark BT phases 1-2-3 done, list remaining work |
+  *(+ `b1df46a` itself, the GearIcon fix, is what v2.1.1 was tagged on)*
 
-### AUR state
-- Repo: `ssh://aur@aur.archlinux.org/dmgr-desktop.git`
-- Last AUR commit: `1012ddc v2.1.1-1: drop custom-protocol sed patch (now in upstream tarball)`
-- Current AUR: `2.1.1-1` (GearIcon fix only — the BT work is in the local branch but not yet tagged).
+### Git state — AUR repo (`/home/isra/aur-dmgr-desktop`)
+- **Last commit:** `1012ddc v2.1.1-1: drop custom-protocol sed patch (now in upstream tarball)` (✅ pushed)
+- **Current AUR package:** `2.1.1-1`
+- **Source URL:** `https://github.com/Khinmmad/dmgr/archive/refs/tags/v$pkgver.tar.gz` (auto-bumps with `pkgver`)
 
 ### Files changed in this session (cumulative)
-- `desktop/src/components/GearIcon.tsx` (new).
-- `desktop/src/App.tsx` — `<GearIcon />` for brand and settings button.
-- `desktop/package.json`, `desktop/src-tauri/Cargo.toml`, `desktop/src-tauri/tauri.conf.json` — `2.1.0 → 2.1.1`.
-- `aur-dmgr-desktop/PKGBUILD` — `pkgver=2.1.1 pkgrel=1`, sed `prepare()` block dropped.
-- `desktop/src-tauri/Cargo.toml` — `+ thiserror = "1"`, `+ tokio = { ..., features = ["process", "time", "macros", "rt"] }`.
-- `desktop/src-tauri/src/bluetooth.rs` — full refactor: `BtError` enum, async fn, timeouts, daemon-down detection, parallel `info()` calls, 6 new unit tests, `scan()` + `remove()` (Linux), typed `BtError` stubs for Windows.
-- `desktop/src-tauri/src/commands.rs` — `bt_state/bt_connect/bt_disconnect/bt_set_power/bt_set_trust/bt_remove/bt_scan/capabilities` now `async fn`.
-- `desktop/src-tauri/src/lib.rs` — registered `commands::bt_remove` and `commands::bt_scan`.
-- `desktop/src/api.ts` — `btRemove(mac)`, `btScan(secs?)`.
-- `desktop/src/components/BluetoothPanel.tsx` — per-action in-flight guards, Scan button (Linux), Unpair button, daemon-down banner, text-based Trust labels (replaced `★`/`☆`).
-- `CHECKPOINT.md` — this file.
-- `AGENTS.md` — one-line pointer to `CHECKPOINT.md`.
+- **New:** `desktop/src/components/GearIcon.tsx`, `CHECKPOINT.md`
+- **Frontend:** `desktop/src/App.tsx`, `desktop/src/api.ts`, `desktop/src/components/BluetoothPanel.tsx`
+- **Backend:** `desktop/src-tauri/Cargo.toml` (+ thiserror, + tokio), `desktop/src-tauri/src/bluetooth.rs` (full refactor), `desktop/src-tauri/src/commands.rs`, `desktop/src-tauri/src/lib.rs`
+- **Version bumps:** `desktop/package.json`, `desktop/src-tauri/Cargo.toml`, `desktop/src-tauri/tauri.conf.json` (all `2.1.0 → 2.1.1`)
+- **AUR:** `aur-dmgr-desktop/PKGBUILD`, `aur-dmgr-desktop/.SRCINFO`
+- **Docs:** `AGENTS.md` (one-line pointer to `CHECKPOINT.md`)
 
 ---
 
-## Pending immediate steps (in order)
+## Key technical decisions (don't undo these without thinking)
 
-1. **USER** — tag and push the BT work as `v2.1.2`:
-   ```bash
-   cd /home/isra/projects/dmgr
-   git checkout main && git merge --no-ff fix-aur-localhost-and-windows   # optional
-   git tag -a v2.1.2 -m "dmgr-desktop 2.1.2 (bluetooth perfection)"
-   git push origin main fix-aur-localhost-and-windows v2.1.2
-   ```
-   (Skip the merge if you prefer to keep the fix branch separate.)
+### Why `--features custom-protocol` is mandatory for production
+The Tauri 2 binary, when built without this feature, compiles with `cfg(dev)` and loads `tauri.conf.json`'s `devUrl` (`http://localhost:1420`) at runtime instead of the embedded `frontendDist`. The user gets a blank "localhost failed" window. The Tauri CLI passes this flag automatically; plain `cargo build` does not. **Always** `cargo build --release --features custom-protocol --manifest-path src-tauri/Cargo.toml` for AUR/packaged builds. The `desktop/README.md:38-42` docblock spells this out.
 
-2. **AGENT** — once `v2.1.2` is on GitHub, update the AUR PKGBUILD:
-   - `pkgver=2.1.2`, `pkgrel=1`.
-   - Bump versions in the same three files (`package.json`, `Cargo.toml`, `tauri.conf.json`) — but actually, the version in those files is the *product* version, not the package. The AUR's `pkgver` follows the product version. So as long as the new tag is `v2.1.2`, the source URL auto-updates to `v2.1.2.tar.gz`.
-   - Regenerate `.SRCINFO` and commit + push to the AUR.
+The v2.1.0 GitHub tag was cut *before* this feature was added to `desktop/src-tauri/Cargo.toml`, which is why AUR `2.1.0-4` carried a `prepare()` sed-patch. v2.1.1+ tarballs include the feature natively; the patch is gone.
 
-3. **USER** — `yay -Syu dmgr-desktop` to get the BT improvements.
+### Why inline SVG for `⚙` (and now `★`/`☆`)
+`⚙` (U+2699 GEAR) and `★`/`☆` (U+2605/2606) are in the "Miscellaneous Symbols" block, which most Linux text fonts skip → render as invisible Tofu boxes. The user is on Hyprland. Emoji (`🔊`, `🔵`, `🧩`, `🎧`) come from Noto Color Emoji and work. **Pattern:** for any single-glyph UI symbol, prefer inline SVG with `currentColor` and a `size` prop. Already converted: settings button, brand, trust button.
 
----
+### Bluetooth error model
+`BtError` (thiserror) serialises to its `Display` string for the TS frontend. The frontend's `invoke<…>` rejects with that string. **Stable contract** — the frontend just shows it in a toast, doesn't pattern-match on it. If the frontend ever needs typed errors, we'll switch to a structured payload (`{kind: "Timeout" | "DaemonDown" | …, message: string}`) — that's a v2.1.3 thing.
 
-## Key technical decisions and why
+### Bluetooth async + timeout pattern
+Every `bluetoothctl` (Linux) and `powershell` (Windows) call is `async` via `tokio::process::Command` and wrapped in `tokio::time::timeout`. Timeouts: `QUERY_TIMEOUT=3s`, `ACTION_TIMEOUT=8s`. Tauri 2 commands are `async fn` and inherit the runtime. **Don't** go back to `std::process::Command` — it would block the Tauri runtime and freeze the UI on a hung `bluetoothctl`.
 
-### Why `custom-protocol` was missing in v2.1.0
-The published v2.1.0 tag on GitHub was cut **before** the `custom-protocol` feature was added to `desktop/src-tauri/Cargo.toml`. The local repo has the feature (and even the Windows-only deps), but the v2.1.0 tarball does not. The AUR PKGBUILD was copying the in-repo `packaging/dmgr-desktop/PKGBUILD` which had `--features custom-protocol` set, so `cargo` errored with "the package 'dmgr-desktop' does not contain this feature: custom-protocol".
-
-We worked around it for `2.1.0-4` with a `prepare()` step in the AUR PKGBUILD that sed-injects the `[features]` block. With `v2.1.1`, the tarball has the feature natively, so the patch was removed (`1012ddc`).
-
-### Why the inline SVG GearIcon
-The `⚙` character (U+2699 GEAR) is not in many Linux/Wayland text fonts. The user reported it rendering as an invisible Tofu box on Hyprland. Using an inline SVG (Feather "settings" icon) avoids any font dependency and uses `currentColor` for themeability.
-
-Other Unicode characters in the app (🔊 U+1F50A, 🔵 U+1F535, 🧩 U+1F9E9) work because they come from Noto Color Emoji, which is universally installed. Single-glyph rare symbols like `⚙` (U+2699), `⟳` (U+27F3), `★`/`☆` (U+2605/U+2606) may have the same issue. The trust button's `★`/`☆` were preemptively replaced with text labels "Trust" / "Trusted" in commit `fdaeeb2`. `⟳` (rescan) is still a glyph — leave it until reported missing.
-
-### Bluetooth refactor architecture
-- `BtError` enum (`thiserror`) replaces `Result<(), String>`. Serializes to its `Display` string so the TS frontend contract is unchanged.
-- All Linux `bluetoothctl` calls are `async` via `tokio::process::Command`, bounded by `QUERY_TIMEOUT` (3s) or `ACTION_TIMEOUT` (8s) via `tokio::time::timeout`.
-- Per-device `bluetoothctl info` calls run in parallel (`tokio::spawn`), capped by the timeout. Was O(N+2) sequential spawns per poll; now O(1) wall time (capped by timeout).
-- `parse_show` / `parse_info` extracted as pure functions, exercised by 6 new unit tests (parsing + daemon-down detection). Brings total BT tests to 11 (6 Linux + 5 Windows).
-- Same async+timeout treatment for the Windows PowerShell path.
-- Tauri commands `bt_state/bt_connect/bt_disconnect/bt_set_power/bt_set_trust/bt_remove/bt_scan/capabilities` are now `async fn` (Tauri 2 supports this out of the box).
-
-### Tauri 2 + WebKitGTK blank window on Nvidia + Wayland
-Worked around in `src-tauri/src/platform.rs` — sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` automatically. Override by exporting your own value before launching.
+### Tauri 2 + WebKitGTK + Nvidia + Wayland
+`src-tauri/src/platform.rs` auto-sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` to avoid a blank window. Override by exporting your own value before launching. Don't remove this workaround.
 
 ---
 
-## Key technical decisions and why
+## Bluetooth module — what's left
 
-### Why `custom-protocol` was missing in v2.1.0
-The published v2.1.0 tag on GitHub was cut **before** the `custom-protocol` feature was added to `desktop/src-tauri/Cargo.toml`. The local repo has the feature (and even the Windows-only deps), but the v2.1.0 tarball does not. The AUR PKGBUILD was copying the in-repo `packaging/dmgr-desktop/PKGBUILD` which had `--features custom-protocol` set, so `cargo` errored with "the package 'dmgr-desktop' does not contain this feature: custom-protocol".
+| Priority | Item | Notes |
+|---|---|---|
+| P2 | **Event-driven updates** | Replace 5 s polling with `bluetoothctl monitor` → Tauri event `bluetooth-changed`. Needs a background task in the backend (spawn from `lib.rs::run`) and `listen("bluetooth-changed", …)` in `BluetoothPanel.tsx`. |
+| P2 | **Device details modal** | Surface battery / type / signal from `bluetoothctl info`. Battery field needs a separate check. |
+| P2 | **Pair command** | `bluetoothctl pair <mac>`. Needs a "discovered devices" section in the UI. |
+| P2 | **macOS** | `IOBluetooth` via `macos-bluetooth` crate or FFI. Out of scope unless requested. |
+| P3 | **Loading skeleton** on first render | |
+| P3 | **batched info** via `bluetoothctl --json` | Requires BlueZ 5.66+ (2023). |
 
-We worked around it for `2.1.0-4` with a `prepare()` step in the AUR PKGBUILD that sed-injects the `[features]` block. With `v2.1.1`, the tarball will have the feature natively, so the patch becomes unnecessary and can be removed.
-
-### Why the inline SVG GearIcon
-The `⚙` character (U+2699 GEAR) is not in many Linux/Wayland text fonts. The user reported it rendering as an invisible Tofu box on Hyprland. Using an inline SVG (Feather "settings" icon) avoids any font dependency and uses `currentColor` for themeability.
-
-Other Unicode characters in the app (🔊 U+1F50A, 🔵 U+1F535, 🧩 U+1F9E9) work because they come from Noto Color Emoji, which is universally installed. Single-glyph rare symbols like `⚙` (U+2699), `⟳` (U+27F3), `★`/`☆` (U+2605/U+2606) may have the same issue and should be replaced with SVG if reported missing. See "Bluetooth frontend" below — the trust button uses `★`/`☆`.
-
-### Tauri 2 + WebKitGTK blank window on Nvidia + Wayland
-Worked around in `src-tauri/src/platform.rs` — sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` automatically. Override by exporting your own value before launching.
-
----
-
-## Bluetooth module — perfection plan
-
-### Current state (post-`fdaeeb2`)
-- **Linux** (`src-tauri/src/bluetooth.rs` → `unix_impl`): async + tokio + timeouts. `bluetoothctl show` + `bluetoothctl devices` + N× `bluetoothctl info` (now parallel). 6 unit tests for parsing.
-- **Windows** (`win_impl`): async + tokio + timeouts, PowerShell path. 5 existing tests.
-- **No macOS** support (out of scope).
-- 11 unit tests total in bluetooth module.
-
-### Done in this session
-- [x] **[P0] Timeouts** — 3 s for queries, 8 s for actions (commit `432bfd5`).
-- [x] **[P0] Typed errors** — `BtError` enum (`thiserror`); serializes to its `Display` string (commit `432bfd5`).
-- [x] **[P0] Async / tokio** — every subprocess call is `async` (commit `432bfd5`).
-- [x] **[P1] Daemon-down detection** — `parse_show` returns `(false, false)` when stdout is empty or contains "not available" (commit `432bfd5`).
-- [x] **[P1] Parallel info calls** — `tokio::spawn` per device, capped by `QUERY_TIMEOUT` (commit `432bfd5`).
-- [x] **[P1] Linux unit tests** — 6 new tests on `parse_show` + `parse_info` (commit `432bfd5`).
-- [x] **[P1] In-flight guards** — `inFlight: Set<string>` keyed by action+mac (commit `fdaeeb2`).
-- [x] **[P1] Unpair** — `bt_remove` + Unpair button (commit `fdaeeb2`).
-- [x] **[P1] Scan** — `bt_scan(secs?)` + Scan button (commit `fdaeeb2`).
-- [x] **[P1] Trust glyphs** — replaced `★`/`☆` with text "Trust" / "Trusted" (commit `fdaeeb2`).
-- [x] **[P2] Daemon-down banner** — card with `systemctl enable --now bluetooth` hint (commit `fdaeeb2`).
-- [x] **[P2] Empty-state distinction** — "no adapter" vs "no paired devices" vs "daemon down" (commit `fdaeeb2`).
-
-### Still pending (for future sessions)
-- [P2] **Event-driven updates** — replace 5 s polling with `bluetoothctl monitor` → Tauri event. Medium effort, needs a background task in the backend and `listen("bluetooth-changed", …)` in the panel.
-- [P2] **Device details modal** — show battery / type / signal from `bluetoothctl info` (battery requires a separate `bluetoothctl info` field check).
-- [P2] **Pair command** — `bluetoothctl pair <mac>`. UX: button visible only when the panel is showing a discovered (unpaired) device. Requires the "discovered devices" section of the UI.
-- [P2] **macOS support** — `IOBluetooth` via the `macos-bluetooth` crate or direct FFI. Out of scope unless the user requests it.
-- [P3] **Loading skeleton** on first render.
-- [P3] **batched info** via `bluetoothctl --json` (BlueZ 5.66+).
-
-### Key files
-- Backend: `desktop/src-tauri/src/bluetooth.rs` (~480 lines now)
-- Frontend: `desktop/src/components/BluetoothPanel.tsx` (~220 lines now)
-- Tauri commands: `desktop/src-tauri/src/commands.rs`
-- TS API: `desktop/src/api.ts` (look for `bt*`)
-- Types: `desktop/src/types.ts` (look for `BtState`, `BtDevice`)
+### BT module file map
+- `desktop/src-tauri/src/bluetooth.rs` — backend (~480 lines, dual `unix_impl` / `win_impl`)
+- `desktop/src/components/BluetoothPanel.tsx` — frontend (~220 lines)
+- `desktop/src-tauri/src/commands.rs` — Tauri command bindings (line ~112-150 is the BT block)
+- `desktop/src/api.ts` — TS API (`bt*` methods)
+- `desktop/src/types.ts` — `BtState`, `BtDevice`
 
 ---
 
-## Useful files to read on a fresh session
+## Other things to know
 
+### Conventions (from `AGENTS.md`)
+- One commit per fix, descriptive messages (`fix(bluetooth): …`, `feat(bluetooth): …`, `refactor(bluetooth): …`).
+- Update `AGENTS.md` + `CHECKPOINT.md` if project structure/patterns change.
+- The old `PROGRESS.md` reference is stale; `AGENTS.md` is the single source of truth.
+
+### Project structure (dmgr is multi-language; desktop lives in a nested workspace)
+```
+dmgr/
+├── Cargo.toml                  # workspace root (dmgr-core, dmgr-daemon, dmgr-polkit-helper)
+├── crates/                     # Rust core engine
+├── cli/                        # Python CLI
+├── qml/                        # QtQuick UIs (legacy)
+├── resources/                  # polkit policy, .desktop file, service units
+├── packaging/dmgr-desktop/     # in-repo reference AUR PKGBUILD (source of truth)
+├── aur-dmgr-desktop/           # the AUR clone we actually maintain
+└── desktop/                    # Tauri + React frontend (this is what we touch)
+    ├── src/                    # React/TS
+    ├── src-tauri/              # Rust backend (nested workspace!)
+    │   ├── Cargo.toml          # [workspace] declared, so the root workspace ignores it
+    │   ├── src/
+    │   └── tauri.conf.json
+    └── package.json
+```
+
+### Useful files to read on a fresh session
 - `AGENTS.md` — project conventions, build/test commands, known caveats.
 - `desktop/README.md` — Tauri build notes (the `--features custom-protocol` gotcha).
-- `desktop/src-tauri/Cargo.toml` — features block.
-- `aur-dmgr-desktop/PKGBUILD` — the AUR one we maintain.
-- `packaging/dmgr-desktop/PKGBUILD` — in-repo reference (the source of truth).
+- `aur-dmgr-desktop/PKGBUILD` — the AUR pkg we maintain.
+- `packaging/dmgr-desktop/PKGBUILD` — in-repo reference (source of truth).
 - `desktop/src-tauri/src/bluetooth.rs` — start here for BT work.
 
-## Conventions (from AGENTS.md)
-- One commit per fix, descriptive messages.
-- Update `AGENTS.md` and this `CHECKPOINT.md` if project structure / patterns change.
-- The old `PROGRESS.md` reference is stale — the user uses `AGENTS.md` as the single source of truth.
+### Known caveats
+1. **Bus serialization** in dmgr-core: custom `Serialize` impl on the `Bus` enum (not derived). Don't change without a test pass.
+2. **Tauri 2 + WebKitGTK DMABUF** workaround in `platform.rs` (above).
+3. **Nested workspace** in `desktop/src-tauri/Cargo.toml` declares `[workspace]`, so the repo-root `cargo test` does NOT exercise it. Test the Tauri side via `cargo test --manifest-path desktop/src-tauri/Cargo.toml`.
