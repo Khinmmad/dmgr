@@ -11,6 +11,7 @@ export interface Settings {
   density: Density;
   fontScale: FontScale; // overall interface scale (zoom)
   remember: boolean; // remember last view & filters across sessions
+  notifications: boolean; // toast on device connect/disconnect
 }
 
 export interface UiState {
@@ -52,6 +53,7 @@ export const DEFAULT_SETTINGS: Settings = {
   density: "comfortable",
   fontScale: "md",
   remember: true,
+  notifications: true,
 };
 
 const SETTINGS_KEY = "dmgr.settings";

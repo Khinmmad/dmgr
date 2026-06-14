@@ -304,9 +304,15 @@ export default function App() {
             </div>
           ))}
 
-        {view === "audio" && <AudioPanel notify={notify} />}
+        {view === "audio" && (
+          <AudioPanel notify={notify} notifications={settings.notifications} />
+        )}
         {view === "bluetooth" && (
-          <BluetoothPanel notify={notify} os={platform?.os ?? "linux"} />
+          <BluetoothPanel
+            notify={notify}
+            os={platform?.os ?? "linux"}
+            notifications={settings.notifications}
+          />
         )}
         {view === "modules" && <ModulesPanel notify={notify} />}
         {view === "settings" && (

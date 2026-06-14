@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Notify } from "../App";
 import { api } from "../api";
 import { useAliases } from "../aliases";
@@ -26,9 +26,10 @@ function typeLabel(icon: string): string {
 interface Props {
   notify: Notify;
   os: string;
+  notifications: boolean;
 }
 
-export default function BluetoothPanel({ notify, os }: Props) {
+export default function BluetoothPanel({ notify, os, notifications }: Props) {
   const isWindows = os === "windows";
   const [state, setState] = useState<BtState | null>(null);
   // Per-action in-flight guard. Prevents overlapping bluetoothctl calls when
@@ -43,14 +44,28 @@ export default function BluetoothPanel({ notify, os }: Props) {
   const { map: aliases, name: aliasName, rename } = useAliases();
   const { has: isFav, toggle: toggleFav } = useFavorites();
   const [q, setQ] = useState("");
+  // Previous connected MACs, to detect connect/disconnect transitions.
+  const prevConn = useRef<Set<string> | null>(null);
 
   const load = useCallback(async () => {
     try {
-      setState(await api.btState());
+      const s = await api.btState();
+      const conn = new Set(s.devices.filter((d) => d.connected).map((d) => d.mac));
+      // Skip the very first load (prevConn null) so we don't announce the
+      // already-connected devices on open.
+      if (prevConn.current && notifications) {
+        for (const d of s.devices) {
+          const was = prevConn.current.has(d.mac);
+          if (d.connected && !was) notify(`${d.name} connected`, "ok");
+          else if (!d.connected && was) notify(`${d.name} disconnected`, "ok");
+        }
+      }
+      prevConn.current = conn;
+      setState(s);
     } catch (e) {
       notify(String(e), "err");
     }
-  }, [notify]);
+  }, [notify, notifications]);
 
   useEffect(() => {
     load();

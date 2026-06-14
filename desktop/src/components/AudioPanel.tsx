@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Notify } from "../App";
 import { api } from "../api";
 import { useAliases } from "../aliases";
@@ -15,9 +15,10 @@ const KIND_ICON: Record<AudioDevice["kind"], string> = {
 
 interface Props {
   notify: Notify;
+  notifications: boolean;
 }
 
-export default function AudioPanel({ notify }: Props) {
+export default function AudioPanel({ notify, notifications }: Props) {
   const [outputs, setOutputs] = useState<AudioDevice[]>([]);
   const [inputs, setInputs] = useState<AudioDevice[]>([]);
   const [busy, setBusy] = useState(false);
@@ -26,15 +27,26 @@ export default function AudioPanel({ notify }: Props) {
   const { map: aliases, name: aliasName, rename } = useAliases();
   const { has: isFav, toggle: toggleFav } = useFavorites();
 
+  // Previous output devices (name → description), to detect appear/disappear.
+  const prevOut = useRef<Map<string, string> | null>(null);
+
   const load = useCallback(async () => {
     try {
       const [o, i] = await Promise.all([api.audioOutputs(), api.audioInputs()]);
+      const cur = new Map(o.map((d) => [d.name, d.description] as [string, string]));
+      if (prevOut.current && notifications) {
+        for (const [name, desc] of cur)
+          if (!prevOut.current.has(name)) notify(`${desc} available`, "ok");
+        for (const [name, desc] of prevOut.current)
+          if (!cur.has(name)) notify(`${desc} removed`, "ok");
+      }
+      prevOut.current = cur;
       setOutputs(o);
       setInputs(i);
     } catch (e) {
       notify(String(e), "err");
     }
-  }, [notify]);
+  }, [notify, notifications]);
 
   useEffect(() => {
     load();

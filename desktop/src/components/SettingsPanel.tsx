@@ -118,6 +118,19 @@ export default function SettingsPanel({ settings, onChange, platformName }: Prop
             onClick={() => onChange({ remember: !settings.remember })}
           />
         </div>
+
+        <div className="set-row">
+          <div>
+            <div className="set-label">Device notifications</div>
+            <div className="panel-sub" style={{ margin: 0 }}>
+              Show a toast when a Bluetooth or audio device connects or disconnects.
+            </div>
+          </div>
+          <button
+            className={`switch ${settings.notifications ? "on" : ""}`}
+            onClick={() => onChange({ notifications: !settings.notifications })}
+          />
+        </div>
       </div>
 
       <div className="row between" style={{ marginTop: 18 }}>
