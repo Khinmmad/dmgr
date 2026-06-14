@@ -112,38 +112,38 @@ pub fn audio_set_mute(name: String, muted: bool) -> Result<(), String> {
 // ── Bluetooth ────────────────────────────────────────────────────────────────
 
 #[tauri::command]
-pub fn bt_state() -> bluetooth::BtState {
-    bluetooth::state()
+pub async fn bt_state() -> bluetooth::BtState {
+    bluetooth::state().await
 }
 
 #[tauri::command]
-pub fn bt_connect(mac: String) -> Result<(), String> {
-    bluetooth::connect(&mac)
+pub async fn bt_connect(mac: String) -> Result<(), bluetooth::BtError> {
+    bluetooth::connect(&mac).await
 }
 
 #[tauri::command]
-pub fn bt_disconnect(mac: String) -> Result<(), String> {
-    bluetooth::disconnect(&mac)
+pub async fn bt_disconnect(mac: String) -> Result<(), bluetooth::BtError> {
+    bluetooth::disconnect(&mac).await
 }
 
 #[tauri::command]
-pub fn bt_set_power(on: bool) -> Result<(), String> {
-    bluetooth::set_power(on)
+pub async fn bt_set_power(on: bool) -> Result<(), bluetooth::BtError> {
+    bluetooth::set_power(on).await
 }
 
 #[tauri::command]
-pub fn bt_set_trust(mac: String, trust: bool) -> Result<(), String> {
-    bluetooth::set_trust(&mac, trust)
+pub async fn bt_set_trust(mac: String, trust: bool) -> Result<(), bluetooth::BtError> {
+    bluetooth::set_trust(&mac, trust).await
 }
 
 // ── Meta ─────────────────────────────────────────────────────────────────────
 
 #[tauri::command]
-pub fn capabilities() -> Capabilities {
+pub async fn capabilities() -> Capabilities {
     Capabilities {
         audio: audio::is_available(),
         audio_backend: audio::backend_name().to_string(),
-        bluetooth: bluetooth::is_available(),
+        bluetooth: bluetooth::is_available().await,
         root: is_privileged(),
     }
 }

@@ -3,8 +3,14 @@
 //! Linux: full control via `bluetoothctl`. Windows: list paired devices and
 //! toggle the adapter via PnP (connect/disconnect is out of scope — Windows has
 //! no simple CLI for it).
+//!
+//! All subprocess calls are async (tokio) and bounded by a timeout, so a
+//! hung `bluetoothctl` or a missing `bluetoothd` cannot lock the UI. Each
+//! failure mode is reported via the typed [`BtError`] enum; the frontend
+//! receives a human-readable string (Tauri serialises errors via `Display`).
 
 use serde::Serialize;
+use std::time::Duration;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct BtDevice {
@@ -23,6 +29,43 @@ pub struct BtState {
     pub devices: Vec<BtDevice>,
 }
 
+// `DaemonDown`, `DeviceNotFound`, `NotPowered` are intentionally part of the
+// public error API even though the current code paths don't return them yet —
+// they're wired in for the upcoming Phase 2 (scan/unpair) and Phase 3 (typed
+// error mapping in the frontend).
+#[allow(dead_code)]
+#[derive(Debug, thiserror::Error)]
+pub enum BtError {
+    #[error("bluetoothctl not found — install bluez-utils")]
+    NotInstalled,
+    #[error("bluetoothd is not running")]
+    DaemonDown,
+    #[error("device {0} not found")]
+    DeviceNotFound(String),
+    #[error("adapter is not powered")]
+    NotPowered,
+    #[error("operation timed out after {0}s")]
+    Timeout(u64),
+    #[error("bluetoothctl: {0}")]
+    Backend(String),
+}
+
+// Tauri commands return `Result<T, E>` where E must be `Serialize`. We surface
+// errors to the frontend as a plain string (the `Display` message), which
+// matches the previous `String` return type and keeps the TS contract stable.
+impl serde::Serialize for BtError {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&self.to_string())
+    }
+}
+
+/// Time bound for short read-only queries (state, info, list).
+const QUERY_TIMEOUT: Duration = Duration::from_secs(3);
+/// Time bound for actions that may legitimately take a while (connect scans,
+/// pairing, power-cycle). 8 s is generous; a healthy bluetoothctl finishes
+/// most actions in well under 2 s.
+const ACTION_TIMEOUT: Duration = Duration::from_secs(8);
+
 // ── Linux (bluetoothctl) ──────────────────────────────────────────────────────
 
 #[cfg(not(windows))]
@@ -30,67 +73,147 @@ pub use unix_impl::{connect, disconnect, is_available, set_power, set_trust, sta
 
 #[cfg(not(windows))]
 mod unix_impl {
-    use super::{BtDevice, BtState};
-    use std::process::Command;
+    use super::{BtDevice, BtError, BtState, ACTION_TIMEOUT, QUERY_TIMEOUT};
+    use std::process::Stdio;
+    use std::time::Duration;
+    use tokio::process::Command;
 
-    pub fn is_available() -> bool {
-        Command::new("bluetoothctl")
-            .arg("--version")
-            .output()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
+    /// Cheap availability check: is the `bluetoothctl` binary on PATH?
+    /// Use a tight 1 s timeout — we don't want a slow fork to delay startup.
+    pub async fn is_available() -> bool {
+        match tokio::time::timeout(
+            Duration::from_secs(1),
+            Command::new("bluetoothctl").arg("--version").output(),
+        )
+        .await
+        {
+            Ok(Ok(o)) => o.status.success(),
+            _ => false,
+        }
     }
 
-    pub fn state() -> BtState {
-        if !is_available() {
+    pub async fn state() -> BtState {
+        if !is_available().await {
             return BtState {
                 available: false,
                 powered: false,
                 devices: Vec::new(),
             };
         }
+        // Probe the daemon. `bluetoothctl show` prints the default controller
+        // (or "No default controller available" if bluetoothd is down).
+        let show = match run(&["show"], QUERY_TIMEOUT).await {
+            Ok(t) => t,
+            Err(BtError::NotInstalled) => {
+                return BtState {
+                    available: false,
+                    powered: false,
+                    devices: Vec::new(),
+                };
+            }
+            Err(BtError::Timeout(_)) | Err(BtError::Backend(_)) => {
+                // Binary present but unusable → daemon is likely down.
+                return BtState {
+                    available: true,
+                    powered: false,
+                    devices: Vec::new(),
+                };
+            }
+            Err(_) => {
+                return BtState {
+                    available: true,
+                    powered: false,
+                    devices: Vec::new(),
+                };
+            }
+        };
+
+        let (has_controller, powered) = parse_show(&show);
+        if !has_controller {
+            return BtState {
+                available: true,
+                powered: false,
+                devices: Vec::new(),
+            };
+        }
+
+        let devices = match devices().await {
+            Ok(ds) => ds,
+            Err(_) => Vec::new(), // surface partial state instead of failing
+        };
+
         BtState {
             available: true,
-            powered: powered(),
-            devices: devices(),
+            powered,
+            devices,
         }
     }
 
-    fn powered() -> bool {
-        run(&["show"])
-            .map(|s| s.lines().any(|l| l.trim().starts_with("Powered: yes")))
-            .unwrap_or(false)
+    /// Returns `(has_controller, powered)`. `show` is the stdout of
+    /// `bluetoothctl show`.
+    fn parse_show(show: &str) -> (bool, bool) {
+        if show.is_empty() {
+            return (false, false);
+        }
+        // bluetoothd not running: every relevant field shows "not available".
+        if show.contains("not available") {
+            return (false, false);
+        }
+        let powered = show
+            .lines()
+            .any(|l| l.trim().starts_with("Powered: yes"));
+        (true, powered)
     }
 
-    fn devices() -> Vec<BtDevice> {
-        let list = match run(&["devices"]) {
-            Some(t) => t,
-            None => return Vec::new(),
-        };
-        let mut out = Vec::new();
-        for line in list.lines() {
-            // "Device AA:BB:CC:DD:EE:FF Name Here"
-            let parts: Vec<&str> = line.trim().splitn(3, ' ').collect();
-            if parts.len() >= 2 && parts[0] == "Device" {
-                let mac = parts[1].to_string();
-                let name = parts.get(2).map(|s| s.to_string()).unwrap_or_else(|| mac.clone());
-                out.push(info(&mac, name));
+    async fn devices() -> Result<Vec<BtDevice>, BtError> {
+        let list = run(&["devices"], QUERY_TIMEOUT).await?;
+        let macs: Vec<String> = list
+            .lines()
+            .filter_map(|line| {
+                // "Device AA:BB:CC:DD:EE:FF Name Here"
+                let parts: Vec<&str> = line.trim().splitn(3, ' ').collect();
+                if parts.len() >= 2 && parts[0] == "Device" {
+                    Some(parts[1].to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Run all `info` calls in parallel. Each is bounded by QUERY_TIMEOUT.
+        let handles: Vec<_> = macs
+            .iter()
+            .map(|mac| {
+                let m = mac.clone();
+                tokio::spawn(async move { info(&m).await })
+            })
+            .collect();
+        let mut out = Vec::with_capacity(handles.len());
+        for h in handles {
+            match h.await {
+                Ok(Some(d)) => out.push(d),
+                _ => {} // skip individual failures
             }
         }
-        out
+        Ok(out)
     }
 
-    fn info(mac: &str, fallback_name: String) -> BtDevice {
-        let text = run(&["info", mac]).unwrap_or_default();
+    async fn info(mac: &str) -> Option<BtDevice> {
+        let text = run(&["info", mac], QUERY_TIMEOUT).await.ok()?;
+        Some(parse_info(&text, mac))
+    }
+
+    /// Parse the stdout of `bluetoothctl info <mac>`. Pure function — public
+    /// to the module for unit tests.
+    pub(super) fn parse_info(text: &str, mac: &str) -> BtDevice {
         let field = |key: &str| -> Option<String> {
             text.lines()
                 .find_map(|l| l.trim().strip_prefix(key).map(|v| v.trim().to_string()))
         };
-        let name = field("Name:").unwrap_or(fallback_name);
         let yes = |k: &str| field(k).map(|v| v == "yes").unwrap_or(false);
         BtDevice {
             mac: mac.to_string(),
-            name,
+            name: field("Name:").unwrap_or_else(|| mac.to_string()),
             paired: yes("Paired:"),
             connected: yes("Connected:"),
             trusted: yes("Trusted:"),
@@ -98,50 +221,157 @@ mod unix_impl {
         }
     }
 
-    pub fn connect(mac: &str) -> Result<(), String> {
-        run_cmd(&["connect", mac])
+    pub async fn connect(mac: &str) -> Result<(), BtError> {
+        run_cmd(&["connect", mac], ACTION_TIMEOUT).await
     }
 
-    pub fn disconnect(mac: &str) -> Result<(), String> {
-        run_cmd(&["disconnect", mac])
+    pub async fn disconnect(mac: &str) -> Result<(), BtError> {
+        run_cmd(&["disconnect", mac], ACTION_TIMEOUT).await
     }
 
-    pub fn set_power(on: bool) -> Result<(), String> {
-        run_cmd(&["power", if on { "on" } else { "off" }])
+    pub async fn set_power(on: bool) -> Result<(), BtError> {
+        run_cmd(&["power", if on { "on" } else { "off" }], ACTION_TIMEOUT).await
     }
 
-    pub fn set_trust(mac: &str, trust: bool) -> Result<(), String> {
-        run_cmd(&[if trust { "trust" } else { "untrust" }, mac])
+    pub async fn set_trust(mac: &str, trust: bool) -> Result<(), BtError> {
+        run_cmd(&[if trust { "trust" } else { "untrust" }, mac], ACTION_TIMEOUT).await
     }
 
-    fn run(args: &[&str]) -> Option<String> {
-        let out = Command::new("bluetoothctl").args(args).output().ok()?;
-        if out.status.success() {
-            String::from_utf8(out.stdout).ok()
-        } else {
-            None
-        }
-    }
-
-    fn run_cmd(args: &[&str]) -> Result<(), String> {
-        // bluetoothctl returns success even when the action reports an error in
-        // text, so surface stdout/stderr on obvious failures.
-        let out = Command::new("bluetoothctl")
+    async fn run(args: &[&str], timeout: Duration) -> Result<String, BtError> {
+        let fut = Command::new("bluetoothctl")
             .args(args)
-            .output()
-            .map_err(|e| format!("bluetoothctl not found: {e}"))?;
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .output();
+        let out = match tokio::time::timeout(timeout, fut).await {
+            Ok(Ok(o)) => o,
+            Ok(Err(_)) => return Err(BtError::NotInstalled),
+            Err(_) => return Err(BtError::Timeout(timeout.as_secs())),
+        };
+        if !out.status.success() {
+            return Err(BtError::Backend(format!(
+                "bluetoothctl {} failed (exit {:?})",
+                args.join(" "),
+                out.status.code()
+            )));
+        }
+        String::from_utf8(out.stdout)
+            .map_err(|e| BtError::Backend(format!("invalid utf-8: {e}")))
+    }
+
+    async fn run_cmd(args: &[&str], timeout: Duration) -> Result<(), BtError> {
+        // bluetoothctl returns success even when the action reports an error in
+        // text, so surface stdout on obvious failures.
+        let fut = Command::new("bluetoothctl")
+            .args(args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .output();
+        let out = match tokio::time::timeout(timeout, fut).await {
+            Ok(Ok(o)) => o,
+            Ok(Err(_)) => return Err(BtError::NotInstalled),
+            Err(_) => return Err(BtError::Timeout(timeout.as_secs())),
+        };
         let stdout = String::from_utf8_lossy(&out.stdout);
         if stdout.contains("Failed") || stdout.contains("not available") {
             let line = stdout
                 .lines()
                 .find(|l| l.contains("Failed") || l.contains("not available"))
                 .unwrap_or("operation failed");
-            return Err(line.trim().to_string());
+            return Err(BtError::Backend(line.trim().to_string()));
         }
         if out.status.success() {
             Ok(())
         } else {
-            Err(format!("bluetoothctl {} failed", args.join(" ")))
+            Err(BtError::Backend(format!(
+                "bluetoothctl {} failed (exit {:?})",
+                args.join(" "),
+                out.status.code()
+            )))
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        // Real `bluetoothctl show` output, recorded on a live system. Keep
+        // the format identical to BlueZ 5.x so the parser stays current.
+        const SHOW_OK: &str = "\
+Controller AA:BB:CC:DD:EE:FF MyPC [default]
+\tName: MyPC
+\tPowered: yes
+\tDiscoverable: no
+\tPairable: yes
+";
+
+        const SHOW_OFF: &str = "\
+Controller AA:BB:CC:DD:EE:FF MyPC [default]
+\tName: MyPC
+\tPowered: no
+";
+
+        const SHOW_DOWN: &str = "\
+Controller AA:BB:CC:DD:EE:FF not available
+\tName: not available
+\tPowered: no
+";
+
+        #[test]
+        fn show_powered_yes() {
+            let (has_ctrl, on) = parse_show(SHOW_OK);
+            assert!(has_ctrl);
+            assert!(on);
+        }
+
+        #[test]
+        fn show_powered_no() {
+            let (has_ctrl, on) = parse_show(SHOW_OFF);
+            assert!(has_ctrl);
+            assert!(!on);
+        }
+
+        #[test]
+        fn show_daemon_down() {
+            let (has_ctrl, on) = parse_show(SHOW_DOWN);
+            assert!(!has_ctrl, "should treat 'not available' as no controller");
+            assert!(!on);
+        }
+
+        #[test]
+        fn show_empty_is_down() {
+            let (has_ctrl, on) = parse_show("");
+            assert!(!has_ctrl);
+            assert!(!on);
+        }
+
+        // Real `bluetoothctl info <mac>` output (truncated).
+        const INFO_OK: &str = "\
+Device AA:BB:CC:DD:EE:FF
+\tName: Sony WH-1000XM4
+\tPaired: yes
+\tTrusted: yes
+\tConnected: yes
+\tIcon: audio-card
+";
+
+        #[test]
+        fn info_parses_all_fields() {
+            let d = parse_info(INFO_OK, "AA:BB:CC:DD:EE:FF");
+            assert_eq!(d.mac, "AA:BB:CC:DD:EE:FF");
+            assert_eq!(d.name, "Sony WH-1000XM4");
+            assert!(d.paired);
+            assert!(d.trusted);
+            assert!(d.connected);
+            assert_eq!(d.icon, "audio-card");
+        }
+
+        #[test]
+        fn info_falls_back_to_mac_for_missing_name() {
+            let d = parse_info("Device AA:BB:CC:DD:EE:FF\n", "AA:BB:CC:DD:EE:FF");
+            assert_eq!(d.name, "AA:BB:CC:DD:EE:FF");
+            assert!(!d.paired);
+            assert!(!d.connected);
         }
     }
 }
@@ -153,39 +383,58 @@ pub use win_impl::{connect, disconnect, is_available, set_power, set_trust, stat
 
 #[cfg(windows)]
 mod win_impl {
-    use super::{BtDevice, BtState};
-    use std::process::Command;
+    use super::{BtDevice, BtError, BtState};
+    use std::time::Duration;
+    use tokio::process::Command;
 
-    fn ps(script: &str) -> Option<String> {
-        let out = Command::new("powershell")
+    const PS_TIMEOUT: Duration = Duration::from_secs(5);
+
+    async fn ps(script: &str, timeout: Duration) -> Result<String, BtError> {
+        let fut = Command::new("powershell")
             .args(["-NoProfile", "-NonInteractive", "-Command", script])
-            .output()
-            .ok()?;
-        out.status
-            .success()
-            .then(|| String::from_utf8_lossy(&out.stdout).into_owned())
+            .output();
+        let out = match tokio::time::timeout(timeout, fut).await {
+            Ok(Ok(o)) => o,
+            Ok(Err(_)) => return Err(BtError::NotInstalled),
+            Err(_) => return Err(BtError::Timeout(timeout.as_secs())),
+        };
+        if !out.status.success() {
+            return Err(BtError::Backend(format!(
+                "powershell exit {:?}",
+                out.status.code()
+            )));
+        }
+        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
     }
 
     /// A paired remote device is enumerated under BTHENUM/BTHLE; anything else of
     /// class Bluetooth (the USB/PCI radio and the MS enumerators) is "infrastructure".
-    fn is_paired_device(instance_id: &str) -> bool {
+    pub fn is_paired_device(instance_id: &str) -> bool {
         let id = instance_id.to_ascii_uppercase();
         id.starts_with("BTHENUM") || id.starts_with("BTHLE")
     }
 
-    pub fn is_available() -> bool {
-        ps("(Get-PnpDevice -Class Bluetooth -PresentOnly -ErrorAction SilentlyContinue | Measure-Object).Count")
-            .and_then(|s| s.trim().parse::<i64>().ok())
-            .map(|n| n > 0)
-            .unwrap_or(false)
+    pub async fn is_available() -> bool {
+        ps(
+            "(Get-PnpDevice -Class Bluetooth -PresentOnly -ErrorAction SilentlyContinue | Measure-Object).Count",
+            PS_TIMEOUT,
+        )
+        .await
+        .ok()
+        .and_then(|s| s.trim().parse::<i64>().ok())
+        .map(|n| n > 0)
+        .unwrap_or(false)
     }
 
-    pub fn state() -> BtState {
+    pub async fn state() -> BtState {
         let json = match ps(
             "Get-PnpDevice -Class Bluetooth -PresentOnly -ErrorAction SilentlyContinue | \
              Select-Object InstanceId,FriendlyName,Status | ConvertTo-Json -Compress",
-        ) {
-            Some(j) if !j.trim().is_empty() => j,
+            PS_TIMEOUT,
+        )
+        .await
+        {
+            Ok(j) if !j.trim().is_empty() => j,
             _ => {
                 return BtState {
                     available: false,
@@ -243,27 +492,35 @@ mod win_impl {
 
     /// Toggle every Bluetooth radio/adapter (not the paired-device entries).
     /// Requires Administrator, so route through UAC.
-    pub fn set_power(on: bool) -> Result<(), String> {
+    pub async fn set_power(on: bool) -> Result<(), BtError> {
         let verb = if on { "Enable-PnpDevice" } else { "Disable-PnpDevice" };
         let action = format!(
             "Get-PnpDevice -Class Bluetooth | Where-Object {{ $_.InstanceId -notlike 'BTHENUM*' \
              -and $_.InstanceId -notlike 'BTHLE*' }} | {verb} -Confirm:$false"
         );
         crate::winutil::run_elevated(&action)
+            .map_err(|e| BtError::Backend(e))
     }
 
-    pub fn connect(_mac: &str) -> Result<(), String> {
-        Err("Connecting Bluetooth devices isn't supported on Windows yet — pair/connect from \
+    pub async fn connect(_mac: &str) -> Result<(), BtError> {
+        Err(BtError::Backend(
+            "Connecting Bluetooth devices isn't supported on Windows yet — pair/connect from \
              Windows Settings. You can still toggle the adapter here."
-            .into())
+                .into(),
+        ))
     }
 
-    pub fn disconnect(_mac: &str) -> Result<(), String> {
-        Err("Disconnecting Bluetooth devices isn't supported on Windows yet — use Windows Settings.".into())
+    pub async fn disconnect(_mac: &str) -> Result<(), BtError> {
+        Err(BtError::Backend(
+            "Disconnecting Bluetooth devices isn't supported on Windows yet — use Windows Settings."
+                .into(),
+        ))
     }
 
-    pub fn set_trust(_mac: &str, _trust: bool) -> Result<(), String> {
-        Err("Trust management isn't applicable on Windows.".into())
+    pub async fn set_trust(_mac: &str, _trust: bool) -> Result<(), BtError> {
+        Err(BtError::Backend(
+            "Trust management isn't applicable on Windows.".into(),
+        ))
     }
 
     /// Extract a 12-hex MAC from a Bluetooth PnP instance id. Works across the
