@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Notify } from "../App";
 import { api } from "../api";
 import { useAliases } from "../aliases";
+import { useFavorites } from "../favorites";
 import type { BtDevice, BtState } from "../types";
 
 function iconFor(icon: string): string {
@@ -40,6 +41,8 @@ export default function BluetoothPanel({ notify, os }: Props) {
   // mac of the device whose details modal is open (null = closed).
   const [detailMac, setDetailMac] = useState<string | null>(null);
   const { map: aliases, name: aliasName, rename } = useAliases();
+  const { has: isFav, toggle: toggleFav } = useFavorites();
+  const [q, setQ] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -123,12 +126,19 @@ export default function BluetoothPanel({ notify, os }: Props) {
   const daemonDown = state?.available && !state.powered && state.devices.length === 0;
 
   const devices = state?.devices ?? [];
+  const ql = q.trim().toLowerCase();
+  const dn = (d: BtDevice) => aliasName(`bt:${d.mac}`, d.name);
+  const matches = (d: BtDevice) =>
+    !ql || dn(d).toLowerCase().includes(ql) || d.mac.toLowerCase().includes(ql);
+  // Favorites first, then connected, then by (alias) name.
   const byPreference = (a: BtDevice, b: BtDevice) =>
-    Number(b.connected) - Number(a.connected) || a.name.localeCompare(b.name);
-  const paired = devices.filter((d) => d.paired).sort(byPreference);
+    Number(isFav(`bt:${b.mac}`)) - Number(isFav(`bt:${a.mac}`)) ||
+    Number(b.connected) - Number(a.connected) ||
+    dn(a).localeCompare(dn(b));
+  const paired = devices.filter((d) => d.paired && matches(d)).sort(byPreference);
   // Discovered = seen during a scan but not yet paired (Linux only; on Windows
   // every listed device is already paired and discovery is the OS's job).
-  const discovered = devices.filter((d) => !d.paired).sort(byPreference);
+  const discovered = devices.filter((d) => !d.paired && matches(d)).sort(byPreference);
   // Looked up live from state so the modal reflects refreshes (battery, trust…).
   const detail = detailMac ? devices.find((d) => d.mac === detailMac) ?? null : null;
 
@@ -183,6 +193,16 @@ export default function BluetoothPanel({ notify, os }: Props) {
         </div>
       </div>
 
+      {!isWindows && (
+        <input
+          className="search"
+          style={{ width: "100%", marginBottom: 4 }}
+          placeholder="Filter devices…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+      )}
+
       {daemonDown && (
         <div className="card" style={{ color: "var(--subtext)" }}>
           Bluetooth adapter is not responding. Make sure <code>bluetoothd</code> is running:
@@ -214,6 +234,14 @@ export default function BluetoothPanel({ notify, os }: Props) {
             </span>
           ) : (
             <>
+              <button
+                className="btn ghost"
+                style={{ opacity: isFav(`bt:${d.mac}`) ? 1 : 0.35, padding: "8px 10px" }}
+                onClick={() => toggleFav(`bt:${d.mac}`)}
+                title={isFav(`bt:${d.mac}`) ? "Unpin from top" : "Pin to top"}
+              >
+                ⭐
+              </button>
               <button
                 className="btn ghost"
                 onClick={() => setDetailMac(d.mac)}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Notify } from "../App";
 import { api } from "../api";
 import { useAliases } from "../aliases";
+import { useFavorites } from "../favorites";
 import type { AudioDevice } from "../types";
 
 const KIND_ICON: Record<AudioDevice["kind"], string> = {
@@ -21,7 +22,9 @@ export default function AudioPanel({ notify }: Props) {
   const [inputs, setInputs] = useState<AudioDevice[]>([]);
   const [busy, setBusy] = useState(false);
   const [editKey, setEditKey] = useState<string | null>(null);
+  const [q, setQ] = useState("");
   const { map: aliases, name: aliasName, rename } = useAliases();
+  const { has: isFav, toggle: toggleFav } = useFavorites();
 
   const load = useCallback(async () => {
     try {
@@ -84,6 +87,19 @@ export default function AudioPanel({ notify }: Props) {
     }
   };
 
+  const ql = q.trim().toLowerCase();
+  const an = (d: AudioDevice) => aliasName(`audio:${d.name}`, d.description);
+  const order = (list: AudioDevice[]) =>
+    list
+      .filter((d) => !ql || an(d).toLowerCase().includes(ql))
+      .sort(
+        (a, b) =>
+          Number(isFav(`audio:${b.name}`)) - Number(isFav(`audio:${a.name}`)) ||
+          an(a).localeCompare(an(b))
+      );
+  const outs = order(outputs);
+  const ins = order(inputs);
+
   return (
     <div>
       <div className="row between">
@@ -98,9 +114,17 @@ export default function AudioPanel({ notify }: Props) {
         </button>
       </div>
 
+      <input
+        className="search"
+        style={{ width: "100%", margin: "0 0 8px" }}
+        placeholder="Filter audio devices…"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+
       <div className="section-h">Output devices</div>
-      {outputs.length === 0 && <div className="empty">No output devices found.</div>}
-      {outputs.map((d) => (
+      {outs.length === 0 && <div className="empty">No output devices found.</div>}
+      {outs.map((d) => (
         <div key={d.name} className={`media-item ${d.is_default ? "active" : ""}`}>
           <span className="ico">{KIND_ICON[d.kind]}</span>
           <div className="meta">
@@ -136,6 +160,15 @@ export default function AudioPanel({ notify }: Props) {
 
           <button
             className="btn ghost"
+            style={{ opacity: isFav(`audio:${d.name}`) ? 1 : 0.35, padding: "8px 10px" }}
+            onClick={() => toggleFav(`audio:${d.name}`)}
+            title={isFav(`audio:${d.name}`) ? "Unpin" : "Pin to top"}
+          >
+            ⭐
+          </button>
+
+          <button
+            className="btn ghost"
             onClick={() => toggleMute(d)}
             title={d.muted ? "Unmute" : "Mute"}
           >
@@ -167,10 +200,10 @@ export default function AudioPanel({ notify }: Props) {
         </div>
       ))}
 
-      {inputs.length > 0 && (
+      {ins.length > 0 && (
         <>
           <div className="section-h">Input devices</div>
-          {inputs.map((d) => (
+          {ins.map((d) => (
             <div key={d.name} className={`media-item ${d.is_default ? "active" : ""}`}>
               <span className="ico">🎙</span>
               <div className="meta">
@@ -202,6 +235,14 @@ export default function AudioPanel({ notify }: Props) {
                   {d.kind} · {d.state || "—"}
                 </div>
               </div>
+              <button
+                className="btn ghost"
+                style={{ opacity: isFav(`audio:${d.name}`) ? 1 : 0.35, padding: "8px 10px" }}
+                onClick={() => toggleFav(`audio:${d.name}`)}
+                title={isFav(`audio:${d.name}`) ? "Unpin" : "Pin to top"}
+              >
+                ⭐
+              </button>
               {d.is_default ? (
                 <span className="badge-active">● Active</span>
               ) : (
