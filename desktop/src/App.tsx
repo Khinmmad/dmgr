@@ -12,6 +12,7 @@ import AudioPanel from "./components/AudioPanel";
 import BluetoothPanel from "./components/BluetoothPanel";
 import ModulesPanel from "./components/ModulesPanel";
 import SettingsPanel from "./components/SettingsPanel";
+import GearIcon from "./components/GearIcon";
 import type { Settings } from "./settings";
 import {
   applySettings,
@@ -194,7 +195,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <span className="brand">⚙ dmgr</span>
+        <span className="brand"><GearIcon size={16} /> dmgr</span>
         <button
           className={`iconbtn ${view === "devices" ? "active" : ""}`}
           onClick={() => setView("devices")}
@@ -268,7 +269,7 @@ export default function App() {
           onClick={() => setView("settings")}
           title="Settings"
         >
-          ⚙
+          <GearIcon size={14} />
         </button>
       </header>
 
