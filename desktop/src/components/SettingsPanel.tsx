@@ -1,5 +1,5 @@
 import type { Settings } from "../settings";
-import { ACCENTS, DEFAULT_SETTINGS, FONT_SCALES, THEMES } from "../settings";
+import { ACCENTS, DEFAULT_SETTINGS, FONT_SCALES, PANEL_META, THEMES } from "../settings";
 
 interface Props {
   settings: Settings;
@@ -131,6 +131,78 @@ export default function SettingsPanel({ settings, onChange, platformName }: Prop
             onClick={() => onChange({ notifications: !settings.notifications })}
           />
         </div>
+      </div>
+
+      {/* Panels */}
+      <div className="section-h">Panels</div>
+      <div className="card">
+        <div className="set-row">
+          <div>
+            <div className="set-label">Startup panel</div>
+            <div className="panel-sub" style={{ margin: 0 }}>
+              Which panel opens when dmgr launches.
+            </div>
+          </div>
+          <select
+            className="prop-input"
+            value={settings.startupView}
+            onChange={(e) => onChange({ startupView: e.target.value })}
+          >
+            {PANEL_META.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
+            <option value="settings">Settings</option>
+          </select>
+        </div>
+
+        {settings.panelOrder.map((id, i) => {
+          const meta = PANEL_META.find((p) => p.id === id);
+          if (!meta) return null;
+          const hidden = settings.hiddenPanels.includes(id);
+          const move = (dir: number) => {
+            const arr = [...settings.panelOrder];
+            const j = i + dir;
+            if (j < 0 || j >= arr.length) return;
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+            onChange({ panelOrder: arr });
+          };
+          const toggleHidden = () => {
+            const set = new Set(settings.hiddenPanels);
+            if (set.has(id)) set.delete(id);
+            else set.add(id);
+            onChange({ hiddenPanels: [...set] });
+          };
+          return (
+            <div className="set-row" key={id}>
+              <div className="set-label">{meta.label}</div>
+              <div className="row" style={{ gap: 6 }}>
+                <button
+                  className="btn ghost"
+                  onClick={() => move(-1)}
+                  disabled={i === 0}
+                  title="Move up"
+                >
+                  ↑
+                </button>
+                <button
+                  className="btn ghost"
+                  onClick={() => move(1)}
+                  disabled={i === settings.panelOrder.length - 1}
+                  title="Move down"
+                >
+                  ↓
+                </button>
+                <button
+                  className={`switch ${!hidden ? "on" : ""}`}
+                  onClick={toggleHidden}
+                  title={hidden ? "Show in nav" : "Hide from nav"}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       <div className="row between" style={{ marginTop: 18 }}>

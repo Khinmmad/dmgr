@@ -12,6 +12,9 @@ export interface Settings {
   fontScale: FontScale; // overall interface scale (zoom)
   remember: boolean; // remember last view & filters across sessions
   notifications: boolean; // toast on device connect/disconnect
+  panelOrder: string[]; // nav panel ids, in display order
+  hiddenPanels: string[]; // panel ids hidden from the nav
+  startupView: string; // panel id to open on launch
 }
 
 export interface UiState {
@@ -47,6 +50,15 @@ export const FONT_SCALES: { id: FontScale; name: string; zoom: number }[] = [
   { id: "lg", name: "Large", zoom: 1.12 },
 ];
 
+// Configurable nav panels (Settings is always reachable via the gear button and
+// isn't listed here). `id` matches the App `View` union.
+export const PANEL_META: { id: string; label: string }[] = [
+  { id: "devices", label: "Devices" },
+  { id: "audio", label: "🔊 Audio" },
+  { id: "bluetooth", label: "🔵 Bluetooth" },
+  { id: "modules", label: "🧩 Modules" },
+];
+
 export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
   accent: "#89b4fa",
@@ -54,6 +66,9 @@ export const DEFAULT_SETTINGS: Settings = {
   fontScale: "md",
   remember: true,
   notifications: true,
+  panelOrder: ["devices", "audio", "bluetooth", "modules"],
+  hiddenPanels: [],
+  startupView: "devices",
 };
 
 const SETTINGS_KEY = "dmgr.settings";

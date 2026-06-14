@@ -19,6 +19,7 @@ import {
   clearUiState,
   loadSettings,
   loadUiState,
+  PANEL_META,
   saveSettings,
   saveUiState,
 } from "./settings";
@@ -57,7 +58,9 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [showAll, setShowAll] = useState(initial.ui?.showAll ?? false);
   const [navMode, setNavMode] = useState<NavMode>((initial.ui?.navMode as NavMode) ?? "bus");
-  const [view, setView] = useState<View>((initial.ui?.view as View) ?? "devices");
+  const [view, setView] = useState<View>(
+    (initial.ui?.view as View) ?? (initial.settings.startupView as View) ?? "devices"
+  );
   const [caps, setCaps] = useState<Capabilities | null>(null);
   const [platform, setPlatform] = useState<Platform | null>(null);
   const [toast, setToast] = useState<{ msg: string; kind: "ok" | "err" } | null>(null);
@@ -185,47 +188,44 @@ export default function App() {
   const showBluetooth = isLinux || !!caps?.bluetooth;
   const showModules = isLinux;
 
-  // If the current view became unavailable (e.g. on Windows), fall back to devices.
+  // Which panels are available on this platform.
+  const panelAvail: Record<string, boolean> = {
+    devices: true,
+    audio: caps ? caps.audio : true,
+    bluetooth: showBluetooth,
+    modules: showModules,
+  };
+  // Nav panels: user-chosen order, minus hidden, minus platform-unavailable.
+  const navPanels = settings.panelOrder.filter(
+    (id) => panelAvail[id] && !settings.hiddenPanels.includes(id)
+  );
+
+  // If the current view is unavailable or the user hid it, fall back to the
+  // first visible panel (Settings is always reachable via the gear button).
   useEffect(() => {
-    if (view === "audio" && caps && !caps.audio) setView("devices");
-    if (view === "bluetooth" && platform && !showBluetooth) setView("devices");
-    if (view === "modules" && platform && !showModules) setView("devices");
-  }, [view, caps, platform, showBluetooth, showModules]);
+    const ok =
+      view === "settings" || (panelAvail[view] && !settings.hiddenPanels.includes(view));
+    if (!ok) setView((navPanels[0] as View) ?? "settings");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, caps, platform, showBluetooth, showModules, settings.hiddenPanels, settings.panelOrder]);
 
   return (
     <div className="app">
       <header className="topbar">
         <span className="brand"><GearIcon size={16} /> dmgr</span>
-        <button
-          className={`iconbtn ${view === "devices" ? "active" : ""}`}
-          onClick={() => setView("devices")}
-        >
-          Devices
-        </button>
-        <button
-          className={`iconbtn ${view === "audio" ? "active" : ""}`}
-          onClick={() => setView("audio")}
-          disabled={caps ? !caps.audio : false}
-          title={caps && !caps.audio ? "no audio backend available" : ""}
-        >
-          🔊 Audio
-        </button>
-        {showBluetooth && (
-          <button
-            className={`iconbtn ${view === "bluetooth" ? "active" : ""}`}
-            onClick={() => setView("bluetooth")}
-          >
-            🔵 Bluetooth
-          </button>
-        )}
-        {showModules && (
-          <button
-            className={`iconbtn ${view === "modules" ? "active" : ""}`}
-            onClick={() => setView("modules")}
-          >
-            🧩 Modules
-          </button>
-        )}
+        {navPanels.map((id) => {
+          const meta = PANEL_META.find((p) => p.id === id);
+          if (!meta) return null;
+          return (
+            <button
+              key={id}
+              className={`iconbtn ${view === id ? "active" : ""}`}
+              onClick={() => setView(id as View)}
+            >
+              {meta.label}
+            </button>
+          );
+        })}
         <span className="spacer" />
         {view === "devices" && (
           <>
