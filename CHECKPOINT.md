@@ -2,81 +2,72 @@
 
 > **You are a fresh agent / new session.** Read this top-to-bottom before touching anything. The TL;DR at the top is the only section you need to start a session; everything below is reference.
 
-Maintained by: **isra (Khinmmad)**. Last updated: **2026-06-14, end of session**.
+Maintained by: **isra (Khinmmad)**. Last updated: **2026-06-14, v2.1.2 release prep**.
 
 ---
 
 ## 🔖 Session handoff — where we stopped
 
-**Done this session, shipped to AUR:**
-- `dmgr-desktop 2.1.1-1` — fixes the missing "settings" button (inline SVG `GearIcon` for systems whose font lacks U+2699 `⚙`).
+**Done & verified this session (local branch `fix-aur-localhost-and-windows`):**
+- Bluetooth module perfection (commits `432bfd5`, `fdaeeb2`): typed `BtError`, async/tokio + timeouts, daemon-down detection, parallel `info()`, `bt_scan` (10 s) + `bt_remove` (unpair), per-action in-flight guards, daemon-down banner, text trust labels (was `★`/`☆`), 6 new Linux tests.
+- **Version bump `2.1.1 → 2.1.2`** (commit `61ce4ac`): `package.json`, `tauri.conf.json`, `src-tauri/Cargo.toml`, and the **dmgr-desktop** `Cargo.lock` entry only (`derive_more` 2.1.1 / `rustc-hash` 2.1.2 are unrelated 3rd-party crates — left untouched). Also resynced `packaging/dmgr-desktop/PKGBUILD` to `2.1.2-1` (was stale at `2.1.0-3`).
+- **Verified at 2.1.2:** `npm run build` ✅ · `cargo build --release --features custom-protocol` ✅ (1m23s) · `cargo test` ✅ 15/15.
+- **AUR repo PRE-STAGED but intentionally NOT committed/pushed** (`/home/isra/aur-dmgr-desktop`): `PKGBUILD` → `pkgver=2.1.2 pkgrel=1`, `.SRCINFO` regenerated. Held back on purpose — the AUR push must come **after** the GitHub tag, or the `v2.1.2.tar.gz` source won't resolve.
 
-**Done this session, in local branch `fix-aur-localhost-and-windows` (not yet tagged/pushed):**
-- Bluetooth module perfection (commits `432bfd5`, `fdaeeb2`):
-  - typed `BtError` enum, async/tokio subprocess, timeouts, daemon-down detection, parallel `info()` calls, 6 new Linux unit tests
-  - `bt_scan` (10 s discovery) + `bt_remove` (unpair) backend + frontend buttons
-  - per-action in-flight guards, daemon-down banner, text-based trust labels (was `★`/`☆`)
-
-**Next concrete step (owned by USER, then AGENT):**
-1. User tags the local branch as `v2.1.2` and pushes (commands below).
-2. Agent (or user) updates AUR PKGBUILD to `pkgver=2.1.2 pkgrel=1` and pushes.
-3. User runs `yay -Syu dmgr-desktop` to install.
-
-```bash
-# USER step
-cd /home/isra/projects/dmgr
-git checkout main && git merge --no-ff fix-aur-localhost-and-windows   # optional
-git tag -a v2.1.2 -m "dmgr-desktop 2.1.2 (bluetooth perfection)"
-git push origin main fix-aur-localhost-and-windows v2.1.2
-```
-
-After `v2.1.2` is on GitHub, the AUR update is a 30-second job:
-```bash
-# Edit /home/isra/aur-dmgr-desktop/PKGBUILD: pkgver=2.1.1 → 2.1.1, pkgrel=1 (unchanged shape).
-# Wait — pkgver becomes 2.1.2. Then:
-cd /home/isra/aur-dmgr-desktop
-makepkg --printsrcinfo > .SRCINFO
-git add PKGBUILD .SRCINFO
-git commit -m "v2.1.2-1: bump for upstream bluetooth perfection release"
-git push origin master
-```
+**Next concrete step:**
+1. **USER** — tag `v2.1.2` and push (the version bump is already committed at the branch tip):
+   ```bash
+   cd /home/isra/projects/dmgr
+   git checkout main && git merge --no-ff fix-aur-localhost-and-windows   # optional
+   git tag -a v2.1.2 -m "dmgr-desktop 2.1.2 (bluetooth perfection)"
+   git push origin main fix-aur-localhost-and-windows v2.1.2
+   ```
+2. **USER or AGENT** — once `v2.1.2` is on GitHub, finish the AUR push (PKGBUILD + .SRCINFO already edited):
+   ```bash
+   cd /home/isra/aur-dmgr-desktop
+   git add PKGBUILD .SRCINFO
+   git commit -m "v2.1.2-1: bump for upstream bluetooth perfection release"
+   git push origin master
+   ```
+3. **USER** — `yay -Syu dmgr-desktop` to install.
 
 ---
 
 ## Current state at a glance
 
-### Build status
+### Build status (verified at 2.1.2)
 - ✅ `npm run build` (frontend) passes.
-- ✅ `cargo build --release --features custom-protocol` passes.
-- ✅ 15 lib tests pass (6 new BT Linux tests + 9 pre-existing).
-- ✅ AUR `2.1.1-1` builds and installs cleanly (verified by local `makepkg`).
+- ✅ `cargo build --release --features custom-protocol --manifest-path desktop/src-tauri/Cargo.toml` passes (1m23s).
+- ✅ 15 lib tests pass (6 BT Linux tests + 9 pre-existing).
+- ✅ AUR `2.1.1-1` built & installed cleanly previously; `2.1.2-1` PKGBUILD prepared (not yet pushed — pending GitHub tag).
 
 ### Git state — local repo (`/home/isra/projects/dmgr`)
 - **Branch:** `fix-aur-localhost-and-windows`
-- **HEAD:** `8fd6074 docs(checkpoint): mark BT phases 1-2-3 done, list remaining work`
-- **Tagged:** `v2.1.1` at `b1df46a` (✅ pushed to GitHub by user earlier this session)
-- **Working tree:** clean
-- **Commits past v2.1.1 (5 total):**
+- **HEAD:** the `docs(checkpoint)` commit recording this v2.1.2 prep (tip of branch).
+- **Tagged:** `v2.1.1` at `b1df46a` (✅ pushed). `v2.1.2` **not yet created** — that's the USER's next step.
+- **Working tree:** clean.
+- **Commits past v2.1.1:**
   | sha | subject |
   |---|---|
-  | `095345b` | docs: add CHECKPOINT.md + link from AGENTS.md |
+  | `095345b` | docs: add CHECKPOINT.md + link from AGENTS.md (✅ pushed) |
   | `432bfd5` | refactor(bluetooth): async + timeouts + typed errors + Linux tests |
   | `fdaeeb2` | feat(bluetooth): unpair, scan, daemon-down banner, per-action guards |
-  | `8fd6074` | docs(checkpoint): mark BT phases 1-2-3 done, list remaining work |
-  *(+ `b1df46a` itself, the GearIcon fix, is what v2.1.1 was tagged on)*
+  | `8fd6074` | docs(checkpoint): mark BT phases 1-2-3 done |
+  | `86d886e` | docs(checkpoint): clean final handoff |
+  | `61ce4ac` | chore(release): bump dmgr-desktop to 2.1.2 |
+  | *(tip)* | docs(checkpoint): prep v2.1.2 release handoff |
+  *(everything from `432bfd5` onward is unpushed; `b1df46a`, the GearIcon fix, is where v2.1.1 was tagged.)*
 
 ### Git state — AUR repo (`/home/isra/aur-dmgr-desktop`)
-- **Last commit:** `1012ddc v2.1.1-1: drop custom-protocol sed patch (now in upstream tarball)` (✅ pushed)
-- **Current AUR package:** `2.1.1-1`
-- **Source URL:** `https://github.com/Khinmmad/dmgr/archive/refs/tags/v$pkgver.tar.gz` (auto-bumps with `pkgver`)
+- **Last commit:** `1012ddc v2.1.1-1: drop custom-protocol sed patch (now in upstream tarball)` (✅ pushed).
+- **Working tree:** **dirty** — `PKGBUILD` (`pkgver=2.1.2 pkgrel=1`) + `.SRCINFO` edited, **not committed**. Commit/push only after `v2.1.2` is on GitHub.
+- **Source URL:** `https://github.com/Khinmmad/dmgr/archive/refs/tags/v$pkgver.tar.gz` (auto-bumps with `pkgver`).
 
-### Files changed in this session (cumulative)
-- **New:** `desktop/src/components/GearIcon.tsx`, `CHECKPOINT.md`
-- **Frontend:** `desktop/src/App.tsx`, `desktop/src/api.ts`, `desktop/src/components/BluetoothPanel.tsx`
-- **Backend:** `desktop/src-tauri/Cargo.toml` (+ thiserror, + tokio), `desktop/src-tauri/src/bluetooth.rs` (full refactor), `desktop/src-tauri/src/commands.rs`, `desktop/src-tauri/src/lib.rs`
-- **Version bumps:** `desktop/package.json`, `desktop/src-tauri/Cargo.toml`, `desktop/src-tauri/tauri.conf.json` (all `2.1.0 → 2.1.1`)
-- **AUR:** `aur-dmgr-desktop/PKGBUILD`, `aur-dmgr-desktop/.SRCINFO`
-- **Docs:** `AGENTS.md` (one-line pointer to `CHECKPOINT.md`)
+### Files changed in the v2.1.2 cycle
+- **Version bumps (`2.1.1 → 2.1.2`):** `desktop/package.json`, `desktop/src-tauri/Cargo.toml`, `desktop/src-tauri/tauri.conf.json`, `desktop/src-tauri/Cargo.lock` (dmgr-desktop entry).
+- **Packaging:** `packaging/dmgr-desktop/PKGBUILD` resynced to `2.1.2-1`; `aur-dmgr-desktop/PKGBUILD` + `.SRCINFO` staged to `2.1.2-1` (uncommitted).
+- **Docs:** `CHECKPOINT.md` (this file).
+- *(BT source files — `bluetooth.rs`, `commands.rs`, `lib.rs`, `BluetoothPanel.tsx`, `api.ts`, `Cargo.toml` deps — were changed earlier in commits `432bfd5`/`fdaeeb2`.)*
 
 ---
 
