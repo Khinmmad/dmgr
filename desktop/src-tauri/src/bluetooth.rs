@@ -69,7 +69,7 @@ const ACTION_TIMEOUT: Duration = Duration::from_secs(8);
 // ── Linux (bluetoothctl) ──────────────────────────────────────────────────────
 
 #[cfg(not(windows))]
-pub use unix_impl::{connect, disconnect, is_available, set_power, set_trust, state};
+pub use unix_impl::{connect, disconnect, is_available, remove, scan, set_power, set_trust, state};
 
 #[cfg(not(windows))]
 mod unix_impl {
@@ -237,6 +237,35 @@ mod unix_impl {
         run_cmd(&[if trust { "trust" } else { "untrust" }, mac], ACTION_TIMEOUT).await
     }
 
+    /// Unpair (forget) a device. The MAC is removed from the known-devices
+    /// list; the device must be re-paired to be used again.
+    pub async fn remove(mac: &str) -> Result<(), BtError> {
+        run_cmd(&["remove", mac], ACTION_TIMEOUT).await
+    }
+
+    /// Run a discovery scan for `secs` seconds and return every device that
+    /// showed up during the window (paired or not). The Bluetooth spec keeps
+    /// the radio active after a scan, so we always send `scan off` afterwards
+    /// even on error paths.
+    pub async fn scan(secs: u64) -> Result<Vec<BtDevice>, BtError> {
+        // Bounds: 1 s minimum (anything shorter is unreliable), 30 s max to
+        // prevent runaway radio activity.
+        let secs = secs.clamp(1, 30);
+        let _ = run_cmd(&["scan", "on"], Duration::from_secs(2)).await;
+        tokio::time::sleep(Duration::from_secs(secs)).await;
+        let _ = run_cmd(&["scan", "off"], Duration::from_secs(2)).await;
+
+        // Reuse the standard state pipeline to surface anything new.
+        let mut out = state().await;
+        // Stable order: connected first, then by name.
+        out.devices.sort_by(|a, b| {
+            b.connected
+                .cmp(&a.connected)
+                .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+        });
+        Ok(out.devices)
+    }
+
     async fn run(args: &[&str], timeout: Duration) -> Result<String, BtError> {
         let fut = Command::new("bluetoothctl")
             .args(args)
@@ -379,7 +408,7 @@ Device AA:BB:CC:DD:EE:FF
 // ── Windows (PnP) ─────────────────────────────────────────────────────────────
 
 #[cfg(windows)]
-pub use win_impl::{connect, disconnect, is_available, set_power, set_trust, state};
+pub use win_impl::{connect, disconnect, is_available, remove, scan, set_power, set_trust, state};
 
 #[cfg(windows)]
 mod win_impl {
@@ -520,6 +549,22 @@ mod win_impl {
     pub async fn set_trust(_mac: &str, _trust: bool) -> Result<(), BtError> {
         Err(BtError::Backend(
             "Trust management isn't applicable on Windows.".into(),
+        ))
+    }
+
+    pub async fn remove(_mac: &str) -> Result<(), BtError> {
+        Err(BtError::Backend(
+            "Removing paired devices isn't supported on Windows yet — use \
+             Windows Settings → Bluetooth & devices → Devices."
+                .into(),
+        ))
+    }
+
+    pub async fn scan(_secs: u64) -> Result<Vec<BtDevice>, BtError> {
+        Err(BtError::Backend(
+            "Scanning for new devices isn't supported on Windows yet — pair \
+             from Windows Settings → Bluetooth & devices."
+                .into(),
         ))
     }
 

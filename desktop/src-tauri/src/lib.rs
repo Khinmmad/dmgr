@@ -43,6 +43,8 @@ pub fn run() {
             commands::bt_disconnect,
             commands::bt_set_power,
             commands::bt_set_trust,
+            commands::bt_remove,
+            commands::bt_scan,
             commands::capabilities,
             commands::platform_info,
             commands::advanced_details,

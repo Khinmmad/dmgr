@@ -136,6 +136,16 @@ pub async fn bt_set_trust(mac: String, trust: bool) -> Result<(), bluetooth::BtE
     bluetooth::set_trust(&mac, trust).await
 }
 
+#[tauri::command]
+pub async fn bt_remove(mac: String) -> Result<(), bluetooth::BtError> {
+    bluetooth::remove(&mac).await
+}
+
+#[tauri::command]
+pub async fn bt_scan(secs: Option<u64>) -> Result<Vec<bluetooth::BtDevice>, bluetooth::BtError> {
+    bluetooth::scan(secs.unwrap_or(10)).await
+}
+
 // ── Meta ─────────────────────────────────────────────────────────────────────
 
 #[tauri::command]
