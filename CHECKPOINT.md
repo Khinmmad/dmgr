@@ -8,10 +8,18 @@ Maintained by: **isra (Khinmmad)**. Last updated: **2026-06-15, v2.2.0 shipped &
 
 ## 🔖 Session handoff — where we stopped
 
-**v2.2.0 SHIPPED & verified this session.** 🎉 The `more-features` batch (13 features
-below) merged to `main`, tagged **`v2.2.0`** (merge `816c856`), pushed to GitHub; AUR at
-**`2.2.0-1`** (`261658a`). Nothing pending for the release. *(The installed package on
-this box is still `2.1.3-1` until the user runs `yay -Syu`/`pacman -U`.)*
+**v2.2.0 SHIPPED, INSTALLED & verified this session.** 🎉 The `more-features` batch (13
+features below) merged to `main`, tagged **`v2.2.0`** (merge `816c856`), pushed to GitHub;
+AUR at **`2.2.0-1`** (`261658a`); **installed `2.2.0-1` on this box** (`pacman -Qkk` 21/0,
+GUI launches clean). Nothing pending for the release.
+
+**▶ NEXT SESSION — start here:** the one open item is **#9 — BT audio A2DP/HSP profile
+switching** (the deferred half of "advanced audio"): parse `pactl list cards` for card
+profiles + the active one, add a `set-card-profile` command, and a profile selector in
+`AudioPanel.tsx` for Bluetooth headsets (A2DP high-quality vs HSP/HFP hands-free). Ship as
+`2.2.1`. Working tree clean, on `main` — branch off `main`. To install a built pkg
+hands-free: start a polkit agent, then `pkexec pacman -U …` (see the `dmgr-desktop-verify-env`
+memory). Otherwise the project is in a clean, fully-released state.
 
 **`more-features` batch 1 — UI/UX & BT/audio:**
 - `eb21d96` themes (Nord/Gruvbox/Dracula/Macchiato) + interface size (zoom)
@@ -42,27 +50,28 @@ this box is still `2.1.3-1` until the user runs `yay -Syu`/`pacman -U`.)*
 
 ## Current state at a glance
 
-### Build status (v2.1.3, shipped)
-- ✅ `npm run build` (frontend) · `cargo build --release --features custom-protocol` (1m13s) · `cargo test` 15/15.
-- ✅ Clean-room AUR build from the published `2.1.3-1` tarball — exit 0, well-formed package.
-- ✅ Dev release binary launches clean (window `dmgr — Device Manager`, no localhost regression); the new "Discovered devices" + `bt_pair` code is confirmed in the built bundle. (Installed package on this box is still `2.1.2-1` until the user upgrades.)
+### Build status (v2.2.0, shipped & installed)
+- ✅ `npm run build` (frontend) · `cargo build --release --features custom-protocol` (1m14s) · `cargo test` **22/22**.
+- ✅ Clean-room AUR build from the published `2.2.0-1` tarball — exit 0, well-formed package (binary + polkit-helper + policy).
+- ✅ Installed `2.2.0-1` on this box (`pacman -Qkk` 21/0); the installed app launches clean (window `dmgr — Device Manager`, no localhost regression).
 
 ### Git state — local repo (`/home/isra/projects/dmgr`)
-- **Branch:** `main` at **`v2.2.0`** (merge `816c856`, ✅ pushed). `more-features` merged via `--no-ff` (also pushed); `bt-pairing`/`fix-aur-localhost-and-windows` are historical. Tags `v2.1.1`…`v2.2.0` all pushed.
-- **`main` tip:** merge commit `64ea732` (✅ pushed) + a `docs(checkpoint)` commit on top recording this shipped state.
-- **Tags:** `v2.1.1` `b1df46a`, `v2.1.2` `1c44ff9`, **`v2.1.3`** `64ea732` — all ✅ pushed.
+- **Branch:** `main` at **`v2.2.0`** (merge `816c856` + a `docs(checkpoint)` commit on top, all ✅ pushed; in sync with `origin/main`). `more-features` merged via `--no-ff` (also pushed); `bt-pairing` / `fix-aur-localhost-and-windows` are historical.
+- **Tags:** `v2.1.1` … **`v2.2.0`** — all ✅ pushed (`v2.2.0` at merge `816c856`).
 - **Working tree:** clean.
-- v2.1.3 landed via: `4ea35ab` (feat: pairing) → `f876714` (version bump) → merge `64ea732`.
+- v2.2.0 = the 13-commit `more-features` batch + `9bd6d76` (2.1.3→2.2.0 bump) → merge `816c856`.
 
 ### Git state — AUR repo (`/home/isra/aur-dmgr-desktop`)
-- **Last commit:** `ca540f4 v2.1.3-1: bump for upstream bluetooth pairing release` (✅ pushed). Working tree clean.
-- **Current AUR package:** `2.1.3-1`.
+- **Last commit:** `261658a v2.2.0-1: bump for upstream panels + customization release` (✅ pushed). Working tree clean.
+- **Current AUR package:** `2.2.0-1`.
 - **Source URL:** `https://github.com/Khinmmad/dmgr/archive/refs/tags/v$pkgver.tar.gz` (auto-bumps with `pkgver`).
 
-### Files changed in the v2.1.3 cycle
-- **Feature (`4ea35ab`):** `desktop/src-tauri/src/bluetooth.rs`, `commands.rs`, `lib.rs`, `desktop/src/api.ts`, `desktop/src/components/BluetoothPanel.tsx`.
-- **Version bump (`f876714`):** `desktop/package.json`, `desktop/package-lock.json`, `desktop/src-tauri/{Cargo.toml,Cargo.lock,tauri.conf.json}`, `packaging/dmgr-desktop/{PKGBUILD,.SRCINFO}`; AUR `PKGBUILD` + `.SRCINFO` at `2.1.3-1`.
-- **Docs:** `CHECKPOINT.md` (this file).
+### Release recipe (proven 3× this session: 2.1.2 → 2.1.3 → 2.2.0)
+1. **Bump version** (grep the old version first to catch everything; do NOT touch the 3rd-party `ms`/`derive_more`/`rustc-hash` matches): `desktop/package.json`, `desktop/package-lock.json` (only the 2 top self-version lines), `desktop/src-tauri/{Cargo.toml, tauri.conf.json, Cargo.lock` (the `dmgr-desktop` entry only)`}`, `packaging/dmgr-desktop/PKGBUILD` (+ `makepkg --printsrcinfo > .SRCINFO`). Commit on a feature branch.
+2. **Verify:** `cargo build --release --features custom-protocol` · `cargo test` · `npm run build` (run from `desktop/`).
+3. **Ship:** `git switch main && git merge --no-ff <branch>` → `git tag -a vX.Y.Z -m …` → `git push origin main <branch> vX.Y.Z` (`GIT_SSH_COMMAND="ssh -o BatchMode=yes"`). Verify tag on remote + `curl -sI` the tarball (expect 200).
+4. **AUR** (`/home/isra/aur-dmgr-desktop`, only AFTER the GitHub tag exists): edit `pkgver`, `makepkg --printsrcinfo > .SRCINFO`, commit, `git push origin master`.
+5. **Clean-room verify + install:** clone AUR to `/tmp`, `makepkg -f --noconfirm` (no sudo). Install hands-free: start a polkit agent then `pkexec pacman -U <pkg>` — see the `dmgr-desktop-verify-env` memory.
 
 ---
 
@@ -91,16 +100,17 @@ Every `bluetoothctl` (Linux) and `powershell` (Windows) call is `async` via `tok
 
 | Priority | Item | Notes |
 |---|---|---|
-| P2 | **Event-driven updates** | Replace 5 s polling with `bluetoothctl monitor` → Tauri event `bluetooth-changed`. Needs a background task in the backend (spawn from `lib.rs::run`) and `listen("bluetooth-changed", …)` in `BluetoothPanel.tsx`. |
-| P2 | **Device details modal** | Surface battery / type / signal from `bluetoothctl info`. Battery field needs a separate check. |
-| ✅ done | **Pair command** | Shipped in v2.1.3 (`4ea35ab`): `pair(mac)` + `bt_pair` + a "Discovered devices" UI section with a Pair button. |
+| ✅ done | **Pair command** | v2.1.3 (`4ea35ab`): `pair`/`bt_pair` + "Discovered devices" section. |
+| ✅ done | **Device details modal** | v2.2.0 (`05feaa4`): battery/RSSI/type modal + auto-connect; battery inline. |
+| ✅ done | **Event-driven updates** | v2.2.0 (`2688783`): `bluetoothctl` monitor → `bluetooth-changed`; 5 s poll → 20 s safety net. |
+| **▶ P1 next** | **A2DP/HSP profile switching** (#9) | `pactl list cards` → profiles + active; add `set-card-profile`; profile selector in `AudioPanel.tsx` for BT headsets. Ship as 2.2.1. |
 | P2 | **macOS** | `IOBluetooth` via `macos-bluetooth` crate or FFI. Out of scope unless requested. |
 | P3 | **Loading skeleton** on first render | |
 | P3 | **batched info** via `bluetoothctl --json` | Requires BlueZ 5.66+ (2023). |
 
 ### BT module file map
-- `desktop/src-tauri/src/bluetooth.rs` — backend (~480 lines, dual `unix_impl` / `win_impl`)
-- `desktop/src/components/BluetoothPanel.tsx` — frontend (~220 lines)
+- `desktop/src-tauri/src/bluetooth.rs` — backend (~830 lines, dual `unix_impl` / `win_impl`; `monitor` spawns the event task)
+- `desktop/src/components/BluetoothPanel.tsx` — frontend (~370 lines; details modal, search, favorites, aliases)
 - `desktop/src-tauri/src/commands.rs` — Tauri command bindings (line ~112-150 is the BT block)
 - `desktop/src/api.ts` — TS API (`bt*` methods)
 - `desktop/src/types.ts` — `BtState`, `BtDevice`
