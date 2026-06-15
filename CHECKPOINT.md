@@ -2,17 +2,16 @@
 
 > **You are a fresh agent / new session.** Read this top-to-bottom before touching anything. The TL;DR at the top is the only section you need to start a session; everything below is reference.
 
-Maintained by: **isra (Khinmmad)**. Last updated: **2026-06-15, `more-features` branch (13 features, pending merge/release)**.
+Maintained by: **isra (Khinmmad)**. Last updated: **2026-06-15, v2.2.0 shipped & verified**.
 
 ---
 
 ## 🔖 Session handoff — where we stopped
 
-**Released baseline: `v2.1.3`** (on `main` + AUR `2.1.3-1`). On top of it, a large
-**`more-features`** branch (off `main`, **NOT merged / NOT released yet**) adds 13
-features in two batches — each its own commit, all built + unit-tested (22 tests) +
-launch-verified. **➡ Next step: merge `more-features` → `main` and cut a release
-(suggest `2.2.0` — large feature batch). Then push AUR `2.2.0-1` (same flow as v2.1.3).**
+**v2.2.0 SHIPPED & verified this session.** 🎉 The `more-features` batch (13 features
+below) merged to `main`, tagged **`v2.2.0`** (merge `816c856`), pushed to GitHub; AUR at
+**`2.2.0-1`** (`261658a`). Nothing pending for the release. *(The installed package on
+this box is still `2.1.3-1` until the user runs `yay -Syu`/`pacman -U`.)*
 
 **`more-features` batch 1 — UI/UX & BT/audio:**
 - `eb21d96` themes (Nord/Gruvbox/Dracula/Macchiato) + interface size (zoom)
@@ -49,7 +48,7 @@ launch-verified. **➡ Next step: merge `more-features` → `main` and cut a rel
 - ✅ Dev release binary launches clean (window `dmgr — Device Manager`, no localhost regression); the new "Discovered devices" + `bt_pair` code is confirmed in the built bundle. (Installed package on this box is still `2.1.2-1` until the user upgrades.)
 
 ### Git state — local repo (`/home/isra/projects/dmgr`)
-- **Branch:** `more-features` (off `main`, **unmerged/unpushed**) — the 13-feature batch above. `main` is at `v2.1.3`; `bt-pairing` already merged; `fix-aur-localhost-and-windows` is historical.
+- **Branch:** `main` at **`v2.2.0`** (merge `816c856`, ✅ pushed). `more-features` merged via `--no-ff` (also pushed); `bt-pairing`/`fix-aur-localhost-and-windows` are historical. Tags `v2.1.1`…`v2.2.0` all pushed.
 - **`main` tip:** merge commit `64ea732` (✅ pushed) + a `docs(checkpoint)` commit on top recording this shipped state.
 - **Tags:** `v2.1.1` `b1df46a`, `v2.1.2` `1c44ff9`, **`v2.1.3`** `64ea732` — all ✅ pushed.
 - **Working tree:** clean.
