@@ -2,20 +2,42 @@
 
 > **You are a fresh agent / new session.** Read this top-to-bottom before touching anything. The TL;DR at the top is the only section you need to start a session; everything below is reference.
 
-Maintained by: **isra (Khinmmad)**. Last updated: **2026-06-14, v2.1.3 shipped & verified**.
+Maintained by: **isra (Khinmmad)**. Last updated: **2026-06-15, `more-features` branch (13 features, pending merge/release)**.
 
 ---
 
 ## 🔖 Session handoff — where we stopped
 
-**v2.1.3 SHIPPED & verified this session.** 🎉 Nothing pending for the release.
-- **Bluetooth device pairing** (commit `4ea35ab`): `pair(mac)` backend (`bluetoothctl pair`, Windows stub) + `bt_pair` command + `btPair()` api; the UI now splits devices into **Paired** and a new **Discovered devices** section (by the `paired` flag) with a **Pair** button. Closes the discovery flow (scan + unpair already existed).
-- Version bump `2.1.2 → 2.1.3` (commit `f876714`) across `package.json`, `package-lock.json`, `tauri.conf.json`, `src-tauri/Cargo.toml` + the **dmgr-desktop** `Cargo.lock` entry; both PKGBUILDs + both `.SRCINFO` synced to `2.1.3-1`.
-- Merged `bt-pairing` → `main`, tagged **`v2.1.3`** (at merge `64ea732`), pushed to GitHub. AUR pushed to **`2.1.3-1`** (`ca540f4`).
-- **Verified:** local build + 15 tests + frontend ✅ · clean-room AUR build from the published tarball, exit 0 ✅ · dev binary launches clean and the new "Discovered devices" / `bt_pair` code is in the built bundle ✅. The live scan→pair flow with real hardware is the user's acceptance test (BT cache was empty at release time).
-- *(Prior release this session: v2.1.2 "bluetooth perfection" — scan/unpair, async, typed errors.)*
+**Released baseline: `v2.1.3`** (on `main` + AUR `2.1.3-1`). On top of it, a large
+**`more-features`** branch (off `main`, **NOT merged / NOT released yet**) adds 13
+features in two batches — each its own commit, all built + unit-tested (22 tests) +
+launch-verified. **➡ Next step: merge `more-features` → `main` and cut a release
+(suggest `2.2.0` — large feature batch). Then push AUR `2.2.0-1` (same flow as v2.1.3).**
 
-**Next concrete step:** none for the release. Remaining Bluetooth backlog (see *what's left* below): event-driven updates, device-details modal, macOS. Future work branches off `main`.
+**`more-features` batch 1 — UI/UX & BT/audio:**
+- `eb21d96` themes (Nord/Gruvbox/Dracula/Macchiato) + interface size (zoom)
+- `05feaa4` BT details modal (battery/RSSI/type + auto-connect)
+- `08f14c4` device aliases — BT + audio (`useAliases` store, localStorage)
+- `0d2fb7a` per-panel search filter + ⭐ favorites (`useFavorites`)
+- `2b875a5` connect/disconnect notifications (setting-gated)
+- `2688783` event-driven BT updates (`bluetoothctl` monitor → `bluetooth-changed`; 5s poll → 20s safety net)
+- `3c98655` per-app audio volume (pactl sink-inputs)
+- `177db7f` configurable nav panels (order / visibility / startup)
+
+**`more-features` batch 2 — new modules + configs:**
+- `9d045ba` **System** panel — read-only CPU/RAM/uptime/load (`system.rs`)
+- `c8d46f2` **Reload driver** in Devices — modprobe -r/modprobe via pkexec
+- `be52ac3` **Power** panel — ppd profiles + battery + brightness (`power.rs`)
+- `3b2646d` **Services** panel — systemd list + start/stop/restart (`services.rs`)
+- `31a5044` settings: reduce-motion + confirm-destructive
+
+**Verified:** `npm run build` ✅ · `cargo build --release --features custom-protocol` (1m14s) ✅ · `cargo test` **22/22** ✅ · combined app launches clean (window `dmgr — Device Manager`, no errors). Live hardware acceptance (Power/Services on this box, real BT pairing) is the user's to confirm.
+
+**Follow-up (not done):** #9 BT audio A2DP/HSP profile switching (the deferred half of per-app audio).
+
+**Nav-panel system:** panels are registered in `PANEL_META` (settings.ts) **and** `panelAvail` (App.tsx); `effectivePanelOrder()` reconciles a saved order with added/removed panels — add new panels in **both** places + the `View` union + a `{view === "x" && …}` render line.
+
+*(Prior releases this session: v2.1.2 "bluetooth perfection"; v2.1.3 "bluetooth pairing".)*
 
 ---
 
@@ -27,7 +49,7 @@ Maintained by: **isra (Khinmmad)**. Last updated: **2026-06-14, v2.1.3 shipped &
 - ✅ Dev release binary launches clean (window `dmgr — Device Manager`, no localhost regression); the new "Discovered devices" + `bt_pair` code is confirmed in the built bundle. (Installed package on this box is still `2.1.2-1` until the user upgrades.)
 
 ### Git state — local repo (`/home/isra/projects/dmgr`)
-- **Branch:** `main`. `bt-pairing` merged via `--no-ff` (both pushed); older `fix-aur-localhost-and-windows` is historical.
+- **Branch:** `more-features` (off `main`, **unmerged/unpushed**) — the 13-feature batch above. `main` is at `v2.1.3`; `bt-pairing` already merged; `fix-aur-localhost-and-windows` is historical.
 - **`main` tip:** merge commit `64ea732` (✅ pushed) + a `docs(checkpoint)` commit on top recording this shipped state.
 - **Tags:** `v2.1.1` `b1df46a`, `v2.1.2` `1c44ff9`, **`v2.1.3`** `64ea732` — all ✅ pushed.
 - **Working tree:** clean.
