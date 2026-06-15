@@ -11,19 +11,32 @@ import DeviceDetail from "./components/DeviceDetail";
 import AudioPanel from "./components/AudioPanel";
 import BluetoothPanel from "./components/BluetoothPanel";
 import ModulesPanel from "./components/ModulesPanel";
+import SystemPanel from "./components/SystemPanel";
+import PowerPanel from "./components/PowerPanel";
+import ServicesPanel from "./components/ServicesPanel";
 import SettingsPanel from "./components/SettingsPanel";
 import GearIcon from "./components/GearIcon";
 import type { Settings } from "./settings";
 import {
   applySettings,
   clearUiState,
+  effectivePanelOrder,
   loadSettings,
   loadUiState,
+  PANEL_META,
   saveSettings,
   saveUiState,
 } from "./settings";
 
-export type View = "devices" | "audio" | "bluetooth" | "modules" | "settings";
+export type View =
+  | "devices"
+  | "audio"
+  | "bluetooth"
+  | "modules"
+  | "system"
+  | "power"
+  | "services"
+  | "settings";
 export type Notify = (msg: string, kind?: "ok" | "err") => void;
 
 // Internal kernel sub-nodes that aren't user-facing "devices":
@@ -57,7 +70,9 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [showAll, setShowAll] = useState(initial.ui?.showAll ?? false);
   const [navMode, setNavMode] = useState<NavMode>((initial.ui?.navMode as NavMode) ?? "bus");
-  const [view, setView] = useState<View>((initial.ui?.view as View) ?? "devices");
+  const [view, setView] = useState<View>(
+    (initial.ui?.view as View) ?? (initial.settings.startupView as View) ?? "devices"
+  );
   const [caps, setCaps] = useState<Capabilities | null>(null);
   const [platform, setPlatform] = useState<Platform | null>(null);
   const [toast, setToast] = useState<{ msg: string; kind: "ok" | "err" } | null>(null);
@@ -185,47 +200,48 @@ export default function App() {
   const showBluetooth = isLinux || !!caps?.bluetooth;
   const showModules = isLinux;
 
-  // If the current view became unavailable (e.g. on Windows), fall back to devices.
+  // Which panels are available on this platform.
+  const panelAvail: Record<string, boolean> = {
+    devices: true,
+    audio: caps ? caps.audio : true,
+    bluetooth: showBluetooth,
+    modules: showModules,
+    system: isLinux,
+    power: isLinux,
+    services: isLinux,
+  };
+  // Nav panels: user-chosen order (reconciled with new/removed panels), minus
+  // hidden, minus platform-unavailable.
+  const navPanels = effectivePanelOrder(settings.panelOrder).filter(
+    (id) => panelAvail[id] && !settings.hiddenPanels.includes(id)
+  );
+
+  // If the current view is unavailable or the user hid it, fall back to the
+  // first visible panel (Settings is always reachable via the gear button).
   useEffect(() => {
-    if (view === "audio" && caps && !caps.audio) setView("devices");
-    if (view === "bluetooth" && platform && !showBluetooth) setView("devices");
-    if (view === "modules" && platform && !showModules) setView("devices");
-  }, [view, caps, platform, showBluetooth, showModules]);
+    const ok =
+      view === "settings" || (panelAvail[view] && !settings.hiddenPanels.includes(view));
+    if (!ok) setView((navPanels[0] as View) ?? "settings");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, caps, platform, showBluetooth, showModules, settings.hiddenPanels, settings.panelOrder]);
 
   return (
     <div className="app">
       <header className="topbar">
         <span className="brand"><GearIcon size={16} /> dmgr</span>
-        <button
-          className={`iconbtn ${view === "devices" ? "active" : ""}`}
-          onClick={() => setView("devices")}
-        >
-          Devices
-        </button>
-        <button
-          className={`iconbtn ${view === "audio" ? "active" : ""}`}
-          onClick={() => setView("audio")}
-          disabled={caps ? !caps.audio : false}
-          title={caps && !caps.audio ? "no audio backend available" : ""}
-        >
-          🔊 Audio
-        </button>
-        {showBluetooth && (
-          <button
-            className={`iconbtn ${view === "bluetooth" ? "active" : ""}`}
-            onClick={() => setView("bluetooth")}
-          >
-            🔵 Bluetooth
-          </button>
-        )}
-        {showModules && (
-          <button
-            className={`iconbtn ${view === "modules" ? "active" : ""}`}
-            onClick={() => setView("modules")}
-          >
-            🧩 Modules
-          </button>
-        )}
+        {navPanels.map((id) => {
+          const meta = PANEL_META.find((p) => p.id === id);
+          if (!meta) return null;
+          return (
+            <button
+              key={id}
+              className={`iconbtn ${view === id ? "active" : ""}`}
+              onClick={() => setView(id as View)}
+            >
+              {meta.label}
+            </button>
+          );
+        })}
         <span className="spacer" />
         {view === "devices" && (
           <>
@@ -295,6 +311,7 @@ export default function App() {
               os={platform?.os ?? "linux"}
               notify={notify}
               onChanged={refresh}
+              confirmDestructive={settings.confirmDestructive}
             />
           ) : (
             <div className="empty">
@@ -304,11 +321,23 @@ export default function App() {
             </div>
           ))}
 
-        {view === "audio" && <AudioPanel notify={notify} />}
+        {view === "audio" && (
+          <AudioPanel notify={notify} notifications={settings.notifications} />
+        )}
         {view === "bluetooth" && (
-          <BluetoothPanel notify={notify} os={platform?.os ?? "linux"} />
+          <BluetoothPanel
+            notify={notify}
+            os={platform?.os ?? "linux"}
+            notifications={settings.notifications}
+            confirmDestructive={settings.confirmDestructive}
+          />
         )}
         {view === "modules" && <ModulesPanel notify={notify} />}
+        {view === "system" && <SystemPanel notify={notify} />}
+        {view === "power" && <PowerPanel notify={notify} />}
+        {view === "services" && (
+          <ServicesPanel notify={notify} confirmDestructive={settings.confirmDestructive} />
+        )}
         {view === "settings" && (
           <SettingsPanel
             settings={settings}

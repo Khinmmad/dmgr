@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import type { Notify } from "../App";
 import { api } from "../api";
+import { useAliases } from "../aliases";
+import { useFavorites } from "../favorites";
 import type { BtDevice, BtState } from "../types";
 
 function iconFor(icon: string): string {
@@ -11,12 +14,24 @@ function iconFor(icon: string): string {
   return "🔵";
 }
 
+function typeLabel(icon: string): string {
+  if (icon.includes("audio")) return "Audio";
+  if (icon.includes("input-keyboard")) return "Keyboard";
+  if (icon.includes("input-mouse")) return "Mouse";
+  if (icon.includes("input-gaming")) return "Controller";
+  if (icon.includes("phone")) return "Phone";
+  if (icon.includes("computer")) return "Computer";
+  return "Device";
+}
+
 interface Props {
   notify: Notify;
   os: string;
+  notifications: boolean;
+  confirmDestructive: boolean;
 }
 
-export default function BluetoothPanel({ notify, os }: Props) {
+export default function BluetoothPanel({ notify, os, notifications, confirmDestructive }: Props) {
   const isWindows = os === "windows";
   const [state, setState] = useState<BtState | null>(null);
   // Per-action in-flight guard. Prevents overlapping bluetoothctl calls when
@@ -26,20 +41,52 @@ export default function BluetoothPanel({ notify, os }: Props) {
   const [inFlight, setInFlight] = useState<Set<string>>(new Set());
   // True while a scan is running, for the spinner.
   const [scanning, setScanning] = useState(false);
+  // mac of the device whose details modal is open (null = closed).
+  const [detailMac, setDetailMac] = useState<string | null>(null);
+  const { map: aliases, name: aliasName, rename } = useAliases();
+  const { has: isFav, toggle: toggleFav } = useFavorites();
+  const [q, setQ] = useState("");
+  // Previous connected MACs, to detect connect/disconnect transitions.
+  const prevConn = useRef<Set<string> | null>(null);
 
   const load = useCallback(async () => {
     try {
-      setState(await api.btState());
+      const s = await api.btState();
+      const conn = new Set(s.devices.filter((d) => d.connected).map((d) => d.mac));
+      // Skip the very first load (prevConn null) so we don't announce the
+      // already-connected devices on open.
+      if (prevConn.current && notifications) {
+        for (const d of s.devices) {
+          const was = prevConn.current.has(d.mac);
+          if (d.connected && !was) notify(`${d.name} connected`, "ok");
+          else if (!d.connected && was) notify(`${d.name} disconnected`, "ok");
+        }
+      }
+      prevConn.current = conn;
+      setState(s);
     } catch (e) {
       notify(String(e), "err");
     }
-  }, [notify]);
+  }, [notify, notifications]);
 
   useEffect(() => {
     load();
-    const t = window.setInterval(load, 5000);
-    return () => window.clearInterval(t);
-  }, [load]);
+    // Event-driven: the backend's bluetoothctl monitor emits "bluetooth-changed"
+    // on any BlueZ change; debounce bursts (e.g. RSSI churn during a scan).
+    let t: number | undefined;
+    const unlisten = listen("bluetooth-changed", () => {
+      window.clearTimeout(t);
+      t = window.setTimeout(load, 500);
+    });
+    // Fallback poll in case an event is missed — slow on Linux (events do the
+    // work), unchanged on Windows (no BlueZ event stream there).
+    const iv = window.setInterval(load, isWindows ? 5000 : 20000);
+    return () => {
+      unlisten.then((fn) => fn());
+      window.clearTimeout(t);
+      window.clearInterval(iv);
+    };
+  }, [load, isWindows]);
 
   const setBusy = (key: string, on: boolean) =>
     setInFlight((prev) => {
@@ -109,12 +156,21 @@ export default function BluetoothPanel({ notify, os }: Props) {
   const daemonDown = state?.available && !state.powered && state.devices.length === 0;
 
   const devices = state?.devices ?? [];
+  const ql = q.trim().toLowerCase();
+  const dn = (d: BtDevice) => aliasName(`bt:${d.mac}`, d.name);
+  const matches = (d: BtDevice) =>
+    !ql || dn(d).toLowerCase().includes(ql) || d.mac.toLowerCase().includes(ql);
+  // Favorites first, then connected, then by (alias) name.
   const byPreference = (a: BtDevice, b: BtDevice) =>
-    Number(b.connected) - Number(a.connected) || a.name.localeCompare(b.name);
-  const paired = devices.filter((d) => d.paired).sort(byPreference);
+    Number(isFav(`bt:${b.mac}`)) - Number(isFav(`bt:${a.mac}`)) ||
+    Number(b.connected) - Number(a.connected) ||
+    dn(a).localeCompare(dn(b));
+  const paired = devices.filter((d) => d.paired && matches(d)).sort(byPreference);
   // Discovered = seen during a scan but not yet paired (Linux only; on Windows
   // every listed device is already paired and discovery is the OS's job).
-  const discovered = devices.filter((d) => !d.paired).sort(byPreference);
+  const discovered = devices.filter((d) => !d.paired && matches(d)).sort(byPreference);
+  // Looked up live from state so the modal reflects refreshes (battery, trust…).
+  const detail = detailMac ? devices.find((d) => d.mac === detailMac) ?? null : null;
 
   return (
     <div>
@@ -167,6 +223,16 @@ export default function BluetoothPanel({ notify, os }: Props) {
         </div>
       </div>
 
+      {!isWindows && (
+        <input
+          className="search"
+          style={{ width: "100%", marginBottom: 4 }}
+          placeholder="Filter devices…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+      )}
+
       {daemonDown && (
         <div className="card" style={{ color: "var(--subtext)" }}>
           Bluetooth adapter is not responding. Make sure <code>bluetoothd</code> is running:
@@ -183,10 +249,11 @@ export default function BluetoothPanel({ notify, os }: Props) {
         <div key={d.mac} className={`media-item ${d.connected ? "active" : ""}`}>
           <span className="ico">{iconFor(d.icon)}</span>
           <div className="meta">
-            <div className="name">{d.name}</div>
+            <div className="name">{aliasName(`bt:${d.mac}`, d.name)}</div>
             <div className="desc">
               {d.mac} · {d.connected ? "connected" : d.paired ? "paired" : "—"}
-              {d.trusted ? " · trusted" : ""}
+              {d.trusted ? " · auto-connect" : ""}
+              {d.battery != null ? ` · 🔋 ${d.battery}%` : ""}
             </div>
           </div>
 
@@ -199,17 +266,18 @@ export default function BluetoothPanel({ notify, os }: Props) {
             <>
               <button
                 className="btn ghost"
-                disabled={isBusy(`trust:${d.mac}`)}
-                onClick={() =>
-                  act(
-                    `trust:${d.mac}`,
-                    () => api.btSetTrust(d.mac, !d.trusted),
-                    d.trusted ? "Untrusted" : "Trusted"
-                  )
-                }
-                title={d.trusted ? "Untrust this device" : "Trust this device"}
+                style={{ opacity: isFav(`bt:${d.mac}`) ? 1 : 0.35, padding: "8px 10px" }}
+                onClick={() => toggleFav(`bt:${d.mac}`)}
+                title={isFav(`bt:${d.mac}`) ? "Unpin from top" : "Pin to top"}
               >
-                {d.trusted ? "Trusted" : "Trust"}
+                ⭐
+              </button>
+              <button
+                className="btn ghost"
+                onClick={() => setDetailMac(d.mac)}
+                title="Device details (battery, signal, auto-connect)"
+              >
+                Details
               </button>
 
               {d.connected ? (
@@ -245,9 +313,10 @@ export default function BluetoothPanel({ notify, os }: Props) {
               <button
                 className="btn ghost"
                 disabled={isBusy(`remove:${d.mac}`)}
-                onClick={() =>
-                  act(`remove:${d.mac}`, () => api.btRemove(d.mac), `Removed ${d.name}`)
-                }
+                onClick={() => {
+                  if (confirmDestructive && !confirm(`Unpair (forget) "${d.name}"?`)) return;
+                  act(`remove:${d.mac}`, () => api.btRemove(d.mac), `Removed ${d.name}`);
+                }}
                 title="Unpair (forget) this device"
               >
                 Unpair
@@ -264,7 +333,7 @@ export default function BluetoothPanel({ notify, os }: Props) {
             <div key={d.mac} className="media-item">
               <span className="ico">{iconFor(d.icon)}</span>
               <div className="meta">
-                <div className="name">{d.name}</div>
+                <div className="name">{aliasName(`bt:${d.mac}`, d.name)}</div>
                 <div className="desc">{d.mac} · not paired</div>
               </div>
               <button
@@ -280,6 +349,96 @@ export default function BluetoothPanel({ notify, os }: Props) {
             </div>
           ))}
         </>
+      )}
+
+      {detail && (
+        <div className="modal-backdrop" onClick={() => setDetailMac(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="row between">
+              <div className="row" style={{ gap: 12 }}>
+                <span style={{ fontSize: 30 }}>{iconFor(detail.icon)}</span>
+                <div className="panel-title" style={{ margin: 0 }}>
+                  {aliasName(`bt:${detail.mac}`, detail.name)}
+                </div>
+              </div>
+              <button className="iconbtn" onClick={() => setDetailMac(null)} title="Close">
+                ✕
+              </button>
+            </div>
+
+            <table className="prop-table" style={{ marginTop: 14 }}>
+              <tbody>
+                <tr>
+                  <td className="k">Address</td>
+                  <td className="v">{detail.mac}</td>
+                </tr>
+                <tr>
+                  <td className="k">Type</td>
+                  <td className="v">{typeLabel(detail.icon)}</td>
+                </tr>
+                <tr>
+                  <td className="k">Status</td>
+                  <td className="v">
+                    {detail.connected ? "Connected" : detail.paired ? "Paired" : "Discovered"}
+                  </td>
+                </tr>
+                {detail.battery != null && (
+                  <tr>
+                    <td className="k">Battery</td>
+                    <td className="v">🔋 {detail.battery}%</td>
+                  </tr>
+                )}
+                {detail.rssi != null && (
+                  <tr>
+                    <td className="k">Signal</td>
+                    <td className="v">{detail.rssi} dBm</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            <div className="set-row">
+              <div>
+                <div className="set-label">Custom name</div>
+                <div className="panel-sub" style={{ margin: 0 }}>
+                  Shown instead of the device's name.
+                </div>
+              </div>
+              <input
+                key={detail.mac}
+                className="prop-input"
+                defaultValue={aliases[`bt:${detail.mac}`] ?? ""}
+                placeholder={detail.name}
+                onBlur={(e) => rename(`bt:${detail.mac}`, e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                }}
+              />
+            </div>
+
+            {!isWindows && (
+              <div className="set-row" style={{ borderBottom: "none" }}>
+                <div>
+                  <div className="set-label">Auto-connect</div>
+                  <div className="panel-sub" style={{ margin: 0 }}>
+                    Trust this device so it reconnects automatically.
+                  </div>
+                </div>
+                <button
+                  className={`switch ${detail.trusted ? "on" : ""}`}
+                  disabled={isBusy(`trust:${detail.mac}`)}
+                  onClick={() =>
+                    act(
+                      `trust:${detail.mac}`,
+                      () => api.btSetTrust(detail.mac, !detail.trusted),
+                      detail.trusted ? "Auto-connect off" : "Auto-connect on"
+                    )
+                  }
+                />
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

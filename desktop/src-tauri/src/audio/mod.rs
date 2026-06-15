@@ -30,6 +30,16 @@ pub struct AudioDevice {
     pub kind: String, // Builtin | Usb | Hdmi | Bluetooth | Virtual
 }
 
+/// A single application playback stream (pactl sink-input), for per-app volume.
+#[derive(Clone, Debug, Serialize)]
+pub struct AudioApp {
+    pub index: u32,
+    pub name: String,  // application.name, e.g. "Firefox"
+    pub media: String, // media.name, e.g. "YouTube"
+    pub volume: Option<u32>,
+    pub muted: bool,
+}
+
 /// One backend's worth of audio control. `id` is the opaque `AudioDevice.name`.
 pub trait AudioBackend: Send + Sync {
     fn name(&self) -> &'static str;
@@ -96,6 +106,45 @@ pub fn is_available() -> bool {
 /// Name of the active audio backend (for diagnostics / the UI).
 pub fn backend_name() -> &'static str {
     detect().map(|b| b.name()).unwrap_or("none")
+}
+
+// ── Per-application volume (pactl only; other backends degrade to empty) ─────
+
+#[cfg(not(target_os = "windows"))]
+pub fn app_streams() -> Vec<AudioApp> {
+    match choice() {
+        Some(Kind::Pactl) => pactl::app_streams(),
+        _ => Vec::new(),
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn set_app_volume(index: u32, percent: u32) -> Result<(), String> {
+    match choice() {
+        Some(Kind::Pactl) => pactl::set_app_volume(index, percent),
+        _ => Err("per-app volume needs PipeWire-pulse or PulseAudio (pactl)".into()),
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn set_app_mute(index: u32, muted: bool) -> Result<(), String> {
+    match choice() {
+        Some(Kind::Pactl) => pactl::set_app_mute(index, muted),
+        _ => Err("per-app mute needs pactl".into()),
+    }
+}
+
+#[cfg(target_os = "windows")]
+pub fn app_streams() -> Vec<AudioApp> {
+    Vec::new()
+}
+#[cfg(target_os = "windows")]
+pub fn set_app_volume(_index: u32, _percent: u32) -> Result<(), String> {
+    Err("per-app volume isn't supported on Windows yet".into())
+}
+#[cfg(target_os = "windows")]
+pub fn set_app_mute(_index: u32, _muted: bool) -> Result<(), String> {
+    Err("per-app mute isn't supported on Windows yet".into())
 }
 
 // ── shared helpers used by impls ────────────────────────────────────────────

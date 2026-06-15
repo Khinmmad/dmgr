@@ -6,7 +6,10 @@ mod details;
 mod hotplug;
 mod kernel;
 mod platform;
+mod power;
 mod privileged;
+mod services;
+mod system;
 #[cfg(target_os = "windows")]
 mod winutil;
 
@@ -22,6 +25,7 @@ pub fn run() {
         .manage(backend::current_backend())
         .setup(|app| {
             hotplug::spawn(app.handle().clone());
+            bluetooth::spawn_monitor(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -31,6 +35,7 @@ pub fn run() {
             commands::set_property,
             commands::bind_driver,
             commands::unbind_driver,
+            commands::reload_driver,
             commands::set_device_enabled,
             commands::audio_outputs,
             commands::audio_inputs,
@@ -38,6 +43,9 @@ pub fn run() {
             commands::audio_set_default_input,
             commands::audio_set_volume,
             commands::audio_set_mute,
+            commands::audio_app_streams,
+            commands::audio_set_app_volume,
+            commands::audio_set_app_mute,
             commands::bt_state,
             commands::bt_pair,
             commands::bt_connect,
@@ -48,6 +56,12 @@ pub fn run() {
             commands::bt_scan,
             commands::capabilities,
             commands::platform_info,
+            commands::system_info,
+            commands::power_info,
+            commands::power_set_profile,
+            commands::power_set_brightness,
+            commands::services_list,
+            commands::service_action,
             commands::advanced_details,
             commands::kernel_modules,
             commands::kernel_module_info,

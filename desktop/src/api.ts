@@ -1,6 +1,7 @@
 // Thin typed wrappers around the Tauri command layer.
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  AudioApp,
   AudioDevice,
   BtDevice,
   BtState,
@@ -10,6 +11,9 @@ import type {
   KernelModule,
   ModuleInfo,
   Platform,
+  PowerInfo,
+  Service,
+  SystemInfo,
 } from "./types";
 
 export const api = {
@@ -24,6 +28,7 @@ export const api = {
   bindDriver: (path: string, driver: string) =>
     invoke<void>("bind_driver", { path, driver }),
   unbindDriver: (path: string) => invoke<void>("unbind_driver", { path }),
+  reloadDriver: (driver: string) => invoke<void>("reload_driver", { driver }),
   setDeviceEnabled: (path: string, enabled: boolean) =>
     invoke<void>("set_device_enabled", { path, enabled }),
 
@@ -38,6 +43,11 @@ export const api = {
     invoke<void>("audio_set_volume", { name, percent }),
   setMute: (name: string, muted: boolean) =>
     invoke<void>("audio_set_mute", { name, muted }),
+  audioAppStreams: () => invoke<AudioApp[]>("audio_app_streams"),
+  setAppVolume: (index: number, percent: number) =>
+    invoke<void>("audio_set_app_volume", { index, percent }),
+  setAppMute: (index: number, muted: boolean) =>
+    invoke<void>("audio_set_app_mute", { index, muted }),
 
   // bluetooth
   btState: () => invoke<BtState>("bt_state"),
@@ -67,6 +77,13 @@ export const api = {
   // meta
   capabilities: () => invoke<Capabilities>("capabilities"),
   platformInfo: () => invoke<Platform>("platform_info"),
+  systemInfo: () => invoke<SystemInfo>("system_info"),
+  powerInfo: () => invoke<PowerInfo>("power_info"),
+  setPowerProfile: (profile: string) => invoke<void>("power_set_profile", { profile }),
+  setBrightness: (percent: number) => invoke<void>("power_set_brightness", { percent }),
+  servicesList: () => invoke<Service[]>("services_list"),
+  serviceAction: (name: string, action: string) =>
+    invoke<void>("service_action", { name, action }),
 
   // windows shortcuts
   openDeviceManager: () => invoke<void>("open_device_manager"),

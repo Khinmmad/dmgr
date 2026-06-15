@@ -20,6 +20,8 @@ pub struct BtDevice {
     pub connected: bool,
     pub trusted: bool,
     pub icon: String, // audio-card, input-keyboard, phone, ...
+    pub battery: Option<u8>, // 0-100, when the device reports it
+    pub rssi: Option<i16>,   // signal strength in dBm, when in range
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -72,6 +74,22 @@ const ACTION_TIMEOUT: Duration = Duration::from_secs(8);
 pub use unix_impl::{
     connect, disconnect, is_available, pair, remove, scan, set_power, set_trust, state,
 };
+
+/// Spawn a background task that emits `bluetooth-changed` whenever BlueZ reports
+/// a device add/remove/property change, so the UI can refresh without polling.
+/// Linux only; elsewhere it's a no-op (the PnP hotplug monitor and the panel's
+/// fallback poll cover those platforms).
+#[cfg(not(windows))]
+pub fn spawn_monitor(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = unix_impl::monitor(app).await {
+            log::warn!("bluetooth monitor stopped: {e}");
+        }
+    });
+}
+
+#[cfg(windows)]
+pub fn spawn_monitor(_app: tauri::AppHandle) {}
 
 #[cfg(not(windows))]
 mod unix_impl {
@@ -220,7 +238,36 @@ mod unix_impl {
             connected: yes("Connected:"),
             trusted: yes("Trusted:"),
             icon: field("Icon:").unwrap_or_default(),
+            battery: field("Battery Percentage:").and_then(|v| parse_paren_num(&v)),
+            rssi: field("RSSI:").and_then(|v| parse_signed(&v)),
         }
+    }
+
+    /// Battery prints as `0x55 (85)` — take the decimal in parens, falling back
+    /// to a hex `0xNN` or a bare decimal.
+    fn parse_paren_num(v: &str) -> Option<u8> {
+        if let Some(inner) = paren_inner(v) {
+            return inner.parse::<u8>().ok();
+        }
+        if let Some(hex) = v.trim().strip_prefix("0x") {
+            return u8::from_str_radix(hex, 16).ok();
+        }
+        v.trim().parse::<u8>().ok()
+    }
+
+    /// RSSI comes as `-50` or `0xffffffce (-50)` — prefer the parenthesised
+    /// signed decimal.
+    fn parse_signed(v: &str) -> Option<i16> {
+        if let Some(inner) = paren_inner(v) {
+            return inner.parse::<i16>().ok();
+        }
+        v.split_whitespace().next().and_then(|t| t.parse::<i16>().ok())
+    }
+
+    fn paren_inner(v: &str) -> Option<&str> {
+        let start = v.find('(')?;
+        let end = v[start + 1..].find(')')?;
+        Some(v[start + 1..start + 1 + end].trim())
     }
 
     /// Pair (bond) with a discovered device. Works for "Just Works" devices
@@ -273,6 +320,44 @@ mod unix_impl {
                 .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
         });
         Ok(out.devices)
+    }
+
+    /// Long-lived monitor: runs `bluetoothctl` with stdin kept open (so it stays
+    /// in interactive mode) and emits `bluetooth-changed` on every BlueZ
+    /// `[CHG]`/`[NEW]`/`[DEL]` line. This drives event-based UI refresh instead
+    /// of polling.
+    pub async fn monitor(app: tauri::AppHandle) -> Result<(), BtError> {
+        use tauri::Emitter;
+        use tokio::io::{AsyncBufReadExt, BufReader};
+
+        if !is_available().await {
+            return Ok(()); // no bluetoothctl → nothing to monitor
+        }
+
+        let mut child = Command::new("bluetoothctl")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .kill_on_drop(true)
+            .spawn()
+            .map_err(|_| BtError::NotInstalled)?;
+
+        // Hold stdin open for the process lifetime; closing it (EOF) makes
+        // bluetoothctl exit and the monitor stop.
+        let stdin = child.stdin.take();
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| BtError::Backend("no monitor stdout".into()))?;
+        let mut lines = BufReader::new(stdout).lines();
+
+        while let Ok(Some(line)) = lines.next_line().await {
+            if line.contains("[CHG]") || line.contains("[NEW]") || line.contains("[DEL]") {
+                let _ = app.emit("bluetooth-changed", ());
+            }
+        }
+        drop(stdin);
+        Ok(())
     }
 
     async fn run(args: &[&str], timeout: Duration) -> Result<String, BtError> {
@@ -391,6 +476,8 @@ Device AA:BB:CC:DD:EE:FF
 \tTrusted: yes
 \tConnected: yes
 \tIcon: audio-card
+\tBattery Percentage: 0x55 (85)
+\tRSSI: -42
 ";
 
         #[test]
@@ -402,6 +489,8 @@ Device AA:BB:CC:DD:EE:FF
             assert!(d.trusted);
             assert!(d.connected);
             assert_eq!(d.icon, "audio-card");
+            assert_eq!(d.battery, Some(85));
+            assert_eq!(d.rssi, Some(-42));
         }
 
         #[test]
@@ -410,6 +499,15 @@ Device AA:BB:CC:DD:EE:FF
             assert_eq!(d.name, "AA:BB:CC:DD:EE:FF");
             assert!(!d.paired);
             assert!(!d.connected);
+            assert_eq!(d.battery, None);
+            assert_eq!(d.rssi, None);
+        }
+
+        #[test]
+        fn battery_parses_hex_only_form() {
+            // Some BlueZ builds omit the parenthesised decimal.
+            let d = parse_info("Device X\n\tBattery Percentage: 0x64\n", "X");
+            assert_eq!(d.battery, Some(100));
         }
     }
 }
@@ -667,6 +765,8 @@ mod win_impl {
                 paired: true,
                 connected,
                 trusted: false,
+                battery: None,
+                rssi: None,
             });
         }
     }

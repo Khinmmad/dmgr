@@ -35,6 +35,74 @@
   --teal: #179299;
 }
 
+/* Catppuccin Macchiato (dark). */
+:root[data-theme="macchiato"] {
+  --bg: #24273a;
+  --bg-alt: #1e2030;
+  --surface: #363a4f;
+  --surface-2: #494d64;
+  --overlay: #6e738d;
+  --text: #cad3f5;
+  --subtext: #a5adcb;
+  --mauve: #c6a0f6;
+  --green: #a6da95;
+  --yellow: #eed49f;
+  --red: #ed8796;
+  --peach: #f5a97f;
+  --teal: #8bd5ca;
+}
+
+/* Nord. */
+:root[data-theme="nord"] {
+  --bg: #2e3440;
+  --bg-alt: #272c36;
+  --surface: #3b4252;
+  --surface-2: #434c5e;
+  --overlay: #4c566a;
+  --text: #eceff4;
+  --subtext: #d8dee9;
+  --mauve: #b48ead;
+  --green: #a3be8c;
+  --yellow: #ebcb8b;
+  --red: #bf616a;
+  --peach: #d08770;
+  --teal: #8fbcbb;
+}
+
+/* Gruvbox (dark). */
+:root[data-theme="gruvbox"] {
+  --bg: #282828;
+  --bg-alt: #1d2021;
+  --surface: #3c3836;
+  --surface-2: #504945;
+  --overlay: #665c54;
+  --text: #ebdbb2;
+  --subtext: #bdae93;
+  --mauve: #d3869b;
+  --green: #b8bb26;
+  --yellow: #fabd2f;
+  --red: #fb4934;
+  --peach: #fe8019;
+  --teal: #8ec07c;
+}
+
+/* Dracula. */
+:root[data-theme="dracula"] {
+  --bg: #282a36;
+  --bg-alt: #21222c;
+  --surface: #44475a;
+  --surface-2: #565872;
+  --overlay: #6272a4;
+  --text: #f8f8f2;
+  --subtext: #bcc2cd;
+  --mauve: #bd93f9;
+  --green: #50fa7b;
+  --yellow: #f1fa8c;
+  --red: #ff5555;
+  --peach: #ffb86c;
+  --teal: #8be9fd;
+}
+
 /* Compact density: tighter spacing and slightly smaller text. */
 :root[data-density="compact"] body {
   font-size: 12.5px;
@@ -569,4 +637,92 @@ button {
   inset: 0;
   opacity: 0;
   cursor: pointer;
+}
+
+/* full theme presets */
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 4px;
+}
+.theme-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-alt);
+  border: 2px solid transparent;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+.theme-card:hover {
+  border-color: var(--surface-2);
+}
+.theme-card.sel {
+  border-color: var(--accent);
+}
+.theme-prev {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 4px;
+  border: 1px solid rgba(128, 128, 128, 0.25);
+}
+.theme-prev .dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+
+/* ── Modal ──────────────────────────────────────────────────────────────── */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal {
+  background: var(--bg);
+  border: 1px solid var(--surface-2);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  width: 440px;
+  max-width: 92vw;
+  max-height: 86vh;
+  overflow-y: auto;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Meter (e.g. RAM usage) ─────────────────────────────────────────────── */
+
+.meter {
+  height: 10px;
+  background: var(--bg-alt);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.meter-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}
+
+/* Reduce motion: kill transitions/animations when the user asks. */
+:root[data-motion="off"] *,
+:root[data-motion="off"] *::before,
+:root[data-motion="off"] *::after {
+  transition: none !important;
+  animation: none !important;
 }

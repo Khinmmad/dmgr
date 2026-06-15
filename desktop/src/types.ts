@@ -61,6 +61,14 @@ export interface AudioDevice {
   kind: "Builtin" | "Usb" | "Hdmi" | "Bluetooth" | "Virtual";
 }
 
+export interface AudioApp {
+  index: number;
+  name: string;
+  media: string;
+  volume: number | null;
+  muted: boolean;
+}
+
 export interface BtDevice {
   mac: string;
   name: string;
@@ -68,6 +76,8 @@ export interface BtDevice {
   connected: boolean;
   trusted: boolean;
   icon: string;
+  battery: number | null;
+  rssi: number | null;
 }
 
 export interface BtState {
@@ -105,6 +115,35 @@ export interface ModuleInfo {
   version: string | null;
   depends: string[];
   params: string[];
+}
+
+export interface SystemInfo {
+  hostname: string;
+  kernel: string;
+  arch: string;
+  uptime: string;
+  cpu_model: string;
+  cpu_cores: number;
+  mem_total_mb: number;
+  mem_used_mb: number;
+  load_avg: string;
+}
+
+export interface Service {
+  name: string;
+  active: string; // active | inactive | failed
+  sub: string; // running | exited | dead | failed
+  description: string;
+}
+
+export interface PowerInfo {
+  has_ppd: boolean;
+  profiles: string[];
+  active_profile: string;
+  battery_percent: number | null;
+  battery_status: string;
+  has_brightness: boolean;
+  brightness_percent: number | null;
 }
 
 export interface Platform {

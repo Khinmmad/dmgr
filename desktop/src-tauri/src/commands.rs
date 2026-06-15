@@ -1,7 +1,7 @@
 //! Tauri command surface — everything the React frontend can invoke.
 
 use crate::backend::Backend;
-use crate::{audio, bluetooth, details, kernel, platform};
+use crate::{audio, bluetooth, details, kernel, platform, power, services, system};
 use dmgr_core::device::Device;
 use serde::Serialize;
 use tauri::State;
@@ -67,6 +67,29 @@ pub fn unbind_driver(backend: State<'_, Backend>, path: String) -> Result<(), St
     backend.unbind(&path)
 }
 
+/// Reload the kernel module behind a device's driver (`modprobe -r` + `modprobe`)
+/// — the Linux analog of "update driver". Fails harmlessly if the module is in
+/// use. `driver` is validated to a module-name charset to keep the shell safe.
+#[tauri::command]
+pub fn reload_driver(driver: String) -> Result<(), String> {
+    if driver.is_empty()
+        || !driver.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err("invalid module name".into());
+    }
+    #[cfg(not(windows))]
+    {
+        crate::privileged::run_pkexec(
+            "sh",
+            &["-c", &format!("modprobe -r {driver} && modprobe {driver}")],
+        )
+    }
+    #[cfg(windows)]
+    {
+        Err("Reloading drivers isn't supported on Windows — use Device Manager.".into())
+    }
+}
+
 /// Windows-style "Enable/Disable device".
 #[tauri::command]
 pub fn set_device_enabled(
@@ -107,6 +130,21 @@ pub fn audio_set_volume(name: String, percent: u32) -> Result<(), String> {
 #[tauri::command]
 pub fn audio_set_mute(name: String, muted: bool) -> Result<(), String> {
     audio_or_err()?.set_mute(&name, muted)
+}
+
+#[tauri::command]
+pub fn audio_app_streams() -> Vec<audio::AudioApp> {
+    audio::app_streams()
+}
+
+#[tauri::command]
+pub fn audio_set_app_volume(index: u32, percent: u32) -> Result<(), String> {
+    audio::set_app_volume(index, percent)
+}
+
+#[tauri::command]
+pub fn audio_set_app_mute(index: u32, muted: bool) -> Result<(), String> {
+    audio::set_app_mute(index, muted)
 }
 
 // ── Bluetooth ────────────────────────────────────────────────────────────────
@@ -179,6 +217,36 @@ fn is_privileged() -> bool {
 #[tauri::command]
 pub fn platform_info() -> platform::Platform {
     platform::detect()
+}
+
+#[tauri::command]
+pub fn system_info() -> system::SystemInfo {
+    system::info()
+}
+
+#[tauri::command]
+pub fn power_info() -> power::PowerInfo {
+    power::info()
+}
+
+#[tauri::command]
+pub fn power_set_profile(profile: String) -> Result<(), String> {
+    power::set_profile(&profile)
+}
+
+#[tauri::command]
+pub fn power_set_brightness(percent: u8) -> Result<(), String> {
+    power::set_brightness(percent)
+}
+
+#[tauri::command]
+pub fn services_list() -> Vec<services::Service> {
+    services::list()
+}
+
+#[tauri::command]
+pub fn service_action(name: String, action: String) -> Result<(), String> {
+    services::action(&name, &action)
 }
 
 // ── Advanced details ─────────────────────────────────────────────────────────
