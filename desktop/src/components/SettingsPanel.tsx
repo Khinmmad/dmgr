@@ -109,6 +109,19 @@ export default function SettingsPanel({ settings, onChange, platformName }: Prop
             </button>
           </div>
         </div>
+
+        <div className="set-row">
+          <div>
+            <div className="set-label">Reduce motion</div>
+            <div className="panel-sub" style={{ margin: 0 }}>
+              Disable transitions and animations.
+            </div>
+          </div>
+          <button
+            className={`switch ${settings.disableAnimations ? "on" : ""}`}
+            onClick={() => onChange({ disableAnimations: !settings.disableAnimations })}
+          />
+        </div>
       </div>
 
       {/* Behavior */}
@@ -137,6 +150,19 @@ export default function SettingsPanel({ settings, onChange, platformName }: Prop
           <button
             className={`switch ${settings.notifications ? "on" : ""}`}
             onClick={() => onChange({ notifications: !settings.notifications })}
+          />
+        </div>
+
+        <div className="set-row">
+          <div>
+            <div className="set-label">Confirm destructive actions</div>
+            <div className="panel-sub" style={{ margin: 0 }}>
+              Ask before unbinding a driver, unpairing, or stopping a service.
+            </div>
+          </div>
+          <button
+            className={`switch ${settings.confirmDestructive ? "on" : ""}`}
+            onClick={() => onChange({ confirmDestructive: !settings.confirmDestructive })}
           />
         </div>
       </div>

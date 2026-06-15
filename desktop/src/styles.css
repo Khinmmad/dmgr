@@ -718,3 +718,11 @@ button {
   border-radius: 6px;
   transition: width 0.3s ease;
 }
+
+/* Reduce motion: kill transitions/animations when the user asks. */
+:root[data-motion="off"] *,
+:root[data-motion="off"] *::before,
+:root[data-motion="off"] *::after {
+  transition: none !important;
+  animation: none !important;
+}

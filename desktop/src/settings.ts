@@ -12,6 +12,8 @@ export interface Settings {
   fontScale: FontScale; // overall interface scale (zoom)
   remember: boolean; // remember last view & filters across sessions
   notifications: boolean; // toast on device connect/disconnect
+  disableAnimations: boolean; // reduce motion (no transitions/animations)
+  confirmDestructive: boolean; // ask before unbind/unpair/stop/etc.
   panelOrder: string[]; // nav panel ids, in display order
   hiddenPanels: string[]; // panel ids hidden from the nav
   startupView: string; // panel id to open on launch
@@ -78,6 +80,8 @@ export const DEFAULT_SETTINGS: Settings = {
   fontScale: "md",
   remember: true,
   notifications: true,
+  disableAnimations: false,
+  confirmDestructive: true,
   panelOrder: ["devices", "audio", "bluetooth", "modules", "system", "power", "services"],
   hiddenPanels: [],
   startupView: "devices",
@@ -117,6 +121,7 @@ export function applySettings(s: Settings): void {
   // px-based layout coherently without a rem refactor.
   const fs = FONT_SCALES.find((f) => f.id === s.fontScale) ?? FONT_SCALES[1];
   root.style.setProperty("zoom", String(fs.zoom));
+  root.setAttribute("data-motion", s.disableAnimations ? "off" : "on");
 }
 
 export function loadUiState(): Partial<UiState> | null {

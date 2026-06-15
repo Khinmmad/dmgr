@@ -311,6 +311,7 @@ export default function App() {
               os={platform?.os ?? "linux"}
               notify={notify}
               onChanged={refresh}
+              confirmDestructive={settings.confirmDestructive}
             />
           ) : (
             <div className="empty">
@@ -328,12 +329,15 @@ export default function App() {
             notify={notify}
             os={platform?.os ?? "linux"}
             notifications={settings.notifications}
+            confirmDestructive={settings.confirmDestructive}
           />
         )}
         {view === "modules" && <ModulesPanel notify={notify} />}
         {view === "system" && <SystemPanel notify={notify} />}
         {view === "power" && <PowerPanel notify={notify} />}
-        {view === "services" && <ServicesPanel notify={notify} />}
+        {view === "services" && (
+          <ServicesPanel notify={notify} confirmDestructive={settings.confirmDestructive} />
+        )}
         {view === "settings" && (
           <SettingsPanel
             settings={settings}

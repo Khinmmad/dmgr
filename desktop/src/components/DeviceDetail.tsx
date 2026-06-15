@@ -10,9 +10,16 @@ interface Props {
   os: string;
   notify: Notify;
   onChanged: () => void;
+  confirmDestructive: boolean;
 }
 
-export default function DeviceDetail({ device, os, notify, onChanged }: Props) {
+export default function DeviceDetail({
+  device,
+  os,
+  notify,
+  onChanged,
+  confirmDestructive,
+}: Props) {
   const [drivers, setDrivers] = useState<string[]>([]);
   const [pick, setPick] = useState("");
   const [busy, setBusy] = useState(false);
@@ -128,6 +135,7 @@ export default function DeviceDetail({ device, os, notify, onChanged }: Props) {
                     disabled={busy}
                     onClick={() => {
                       if (
+                        confirmDestructive &&
                         !confirm(
                           `Reload driver "${device.driver}"? The device will briefly disconnect.`
                         )
@@ -143,7 +151,10 @@ export default function DeviceDetail({ device, os, notify, onChanged }: Props) {
                     className="btn danger"
                     disabled={busy}
                     onClick={() => {
-                      if (!confirm(`Uninstall driver "${device.driver}" from ${device.name}?`))
+                      if (
+                        confirmDestructive &&
+                        !confirm(`Uninstall driver "${device.driver}" from ${device.name}?`)
+                      )
                         return;
                       guard(() => api.unbindDriver(device.path), "Driver unbound");
                     }}

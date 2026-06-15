@@ -28,9 +28,10 @@ interface Props {
   notify: Notify;
   os: string;
   notifications: boolean;
+  confirmDestructive: boolean;
 }
 
-export default function BluetoothPanel({ notify, os, notifications }: Props) {
+export default function BluetoothPanel({ notify, os, notifications, confirmDestructive }: Props) {
   const isWindows = os === "windows";
   const [state, setState] = useState<BtState | null>(null);
   // Per-action in-flight guard. Prevents overlapping bluetoothctl calls when
@@ -312,9 +313,10 @@ export default function BluetoothPanel({ notify, os, notifications }: Props) {
               <button
                 className="btn ghost"
                 disabled={isBusy(`remove:${d.mac}`)}
-                onClick={() =>
-                  act(`remove:${d.mac}`, () => api.btRemove(d.mac), `Removed ${d.name}`)
-                }
+                onClick={() => {
+                  if (confirmDestructive && !confirm(`Unpair (forget) "${d.name}"?`)) return;
+                  act(`remove:${d.mac}`, () => api.btRemove(d.mac), `Removed ${d.name}`);
+                }}
                 title="Unpair (forget) this device"
               >
                 Unpair

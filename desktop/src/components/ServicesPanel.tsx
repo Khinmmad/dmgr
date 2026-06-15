@@ -11,9 +11,10 @@ const DOT: Record<string, string> = {
 
 interface Props {
   notify: Notify;
+  confirmDestructive: boolean;
 }
 
-export default function ServicesPanel({ notify }: Props) {
+export default function ServicesPanel({ notify, confirmDestructive }: Props) {
   const [services, setServices] = useState<Service[]>([]);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -102,7 +103,14 @@ export default function ServicesPanel({ notify }: Props) {
                 <button className="btn ghost" disabled={busy} onClick={() => act(s.name, "restart")}>
                   Restart
                 </button>
-                <button className="btn danger" disabled={busy} onClick={() => act(s.name, "stop")}>
+                <button
+                  className="btn danger"
+                  disabled={busy}
+                  onClick={() => {
+                    if (confirmDestructive && !confirm(`Stop ${s.name}?`)) return;
+                    act(s.name, "stop");
+                  }}
+                >
                   Stop
                 </button>
               </>
