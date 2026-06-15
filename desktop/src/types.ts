@@ -129,6 +129,13 @@ export interface SystemInfo {
   load_avg: string;
 }
 
+export interface Service {
+  name: string;
+  active: string; // active | inactive | failed
+  sub: string; // running | exited | dead | failed
+  description: string;
+}
+
 export interface PowerInfo {
   has_ppd: boolean;
   profiles: string[];

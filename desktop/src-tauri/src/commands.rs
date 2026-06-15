@@ -1,7 +1,7 @@
 //! Tauri command surface — everything the React frontend can invoke.
 
 use crate::backend::Backend;
-use crate::{audio, bluetooth, details, kernel, platform, power, system};
+use crate::{audio, bluetooth, details, kernel, platform, power, services, system};
 use dmgr_core::device::Device;
 use serde::Serialize;
 use tauri::State;
@@ -237,6 +237,16 @@ pub fn power_set_profile(profile: String) -> Result<(), String> {
 #[tauri::command]
 pub fn power_set_brightness(percent: u8) -> Result<(), String> {
     power::set_brightness(percent)
+}
+
+#[tauri::command]
+pub fn services_list() -> Vec<services::Service> {
+    services::list()
+}
+
+#[tauri::command]
+pub fn service_action(name: String, action: String) -> Result<(), String> {
+    services::action(&name, &action)
 }
 
 // ── Advanced details ─────────────────────────────────────────────────────────

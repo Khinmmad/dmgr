@@ -13,6 +13,7 @@ import BluetoothPanel from "./components/BluetoothPanel";
 import ModulesPanel from "./components/ModulesPanel";
 import SystemPanel from "./components/SystemPanel";
 import PowerPanel from "./components/PowerPanel";
+import ServicesPanel from "./components/ServicesPanel";
 import SettingsPanel from "./components/SettingsPanel";
 import GearIcon from "./components/GearIcon";
 import type { Settings } from "./settings";
@@ -34,6 +35,7 @@ export type View =
   | "modules"
   | "system"
   | "power"
+  | "services"
   | "settings";
 export type Notify = (msg: string, kind?: "ok" | "err") => void;
 
@@ -206,6 +208,7 @@ export default function App() {
     modules: showModules,
     system: isLinux,
     power: isLinux,
+    services: isLinux,
   };
   // Nav panels: user-chosen order (reconciled with new/removed panels), minus
   // hidden, minus platform-unavailable.
@@ -330,6 +333,7 @@ export default function App() {
         {view === "modules" && <ModulesPanel notify={notify} />}
         {view === "system" && <SystemPanel notify={notify} />}
         {view === "power" && <PowerPanel notify={notify} />}
+        {view === "services" && <ServicesPanel notify={notify} />}
         {view === "settings" && (
           <SettingsPanel
             settings={settings}

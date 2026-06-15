@@ -8,6 +8,7 @@ mod kernel;
 mod platform;
 mod power;
 mod privileged;
+mod services;
 mod system;
 #[cfg(target_os = "windows")]
 mod winutil;
@@ -59,6 +60,8 @@ pub fn run() {
             commands::power_info,
             commands::power_set_profile,
             commands::power_set_brightness,
+            commands::services_list,
+            commands::service_action,
             commands::advanced_details,
             commands::kernel_modules,
             commands::kernel_module_info,

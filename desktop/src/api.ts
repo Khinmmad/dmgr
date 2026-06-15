@@ -12,6 +12,7 @@ import type {
   ModuleInfo,
   Platform,
   PowerInfo,
+  Service,
   SystemInfo,
 } from "./types";
 
@@ -80,6 +81,9 @@ export const api = {
   powerInfo: () => invoke<PowerInfo>("power_info"),
   setPowerProfile: (profile: string) => invoke<void>("power_set_profile", { profile }),
   setBrightness: (percent: number) => invoke<void>("power_set_brightness", { percent }),
+  servicesList: () => invoke<Service[]>("services_list"),
+  serviceAction: (name: string, action: string) =>
+    invoke<void>("service_action", { name, action }),
 
   // windows shortcuts
   openDeviceManager: () => invoke<void>("open_device_manager"),

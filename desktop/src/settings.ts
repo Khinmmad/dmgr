@@ -59,6 +59,7 @@ export const PANEL_META: { id: string; label: string }[] = [
   { id: "modules", label: "🧩 Modules" },
   { id: "system", label: "🖥 System" },
   { id: "power", label: "🔋 Power" },
+  { id: "services", label: "🛠 Services" },
 ];
 
 /** Reconcile a saved panel order with the current PANEL_META: keep known ids in
@@ -77,7 +78,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fontScale: "md",
   remember: true,
   notifications: true,
-  panelOrder: ["devices", "audio", "bluetooth", "modules", "system", "power"],
+  panelOrder: ["devices", "audio", "bluetooth", "modules", "system", "power", "services"],
   hiddenPanels: [],
   startupView: "devices",
 };
