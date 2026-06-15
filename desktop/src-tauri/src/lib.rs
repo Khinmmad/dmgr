@@ -6,6 +6,7 @@ mod details;
 mod hotplug;
 mod kernel;
 mod platform;
+mod power;
 mod privileged;
 mod system;
 #[cfg(target_os = "windows")]
@@ -55,6 +56,9 @@ pub fn run() {
             commands::capabilities,
             commands::platform_info,
             commands::system_info,
+            commands::power_info,
+            commands::power_set_profile,
+            commands::power_set_brightness,
             commands::advanced_details,
             commands::kernel_modules,
             commands::kernel_module_info,

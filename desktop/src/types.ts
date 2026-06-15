@@ -129,6 +129,16 @@ export interface SystemInfo {
   load_avg: string;
 }
 
+export interface PowerInfo {
+  has_ppd: boolean;
+  profiles: string[];
+  active_profile: string;
+  battery_percent: number | null;
+  battery_status: string;
+  has_brightness: boolean;
+  brightness_percent: number | null;
+}
+
 export interface Platform {
   os: string;
   distro_id: string;

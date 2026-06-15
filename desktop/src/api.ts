@@ -11,6 +11,7 @@ import type {
   KernelModule,
   ModuleInfo,
   Platform,
+  PowerInfo,
   SystemInfo,
 } from "./types";
 
@@ -76,6 +77,9 @@ export const api = {
   capabilities: () => invoke<Capabilities>("capabilities"),
   platformInfo: () => invoke<Platform>("platform_info"),
   systemInfo: () => invoke<SystemInfo>("system_info"),
+  powerInfo: () => invoke<PowerInfo>("power_info"),
+  setPowerProfile: (profile: string) => invoke<void>("power_set_profile", { profile }),
+  setBrightness: (percent: number) => invoke<void>("power_set_brightness", { percent }),
 
   // windows shortcuts
   openDeviceManager: () => invoke<void>("open_device_manager"),

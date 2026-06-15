@@ -12,6 +12,7 @@ import AudioPanel from "./components/AudioPanel";
 import BluetoothPanel from "./components/BluetoothPanel";
 import ModulesPanel from "./components/ModulesPanel";
 import SystemPanel from "./components/SystemPanel";
+import PowerPanel from "./components/PowerPanel";
 import SettingsPanel from "./components/SettingsPanel";
 import GearIcon from "./components/GearIcon";
 import type { Settings } from "./settings";
@@ -26,7 +27,14 @@ import {
   saveUiState,
 } from "./settings";
 
-export type View = "devices" | "audio" | "bluetooth" | "modules" | "system" | "settings";
+export type View =
+  | "devices"
+  | "audio"
+  | "bluetooth"
+  | "modules"
+  | "system"
+  | "power"
+  | "settings";
 export type Notify = (msg: string, kind?: "ok" | "err") => void;
 
 // Internal kernel sub-nodes that aren't user-facing "devices":
@@ -197,6 +205,7 @@ export default function App() {
     bluetooth: showBluetooth,
     modules: showModules,
     system: isLinux,
+    power: isLinux,
   };
   // Nav panels: user-chosen order (reconciled with new/removed panels), minus
   // hidden, minus platform-unavailable.
@@ -320,6 +329,7 @@ export default function App() {
         )}
         {view === "modules" && <ModulesPanel notify={notify} />}
         {view === "system" && <SystemPanel notify={notify} />}
+        {view === "power" && <PowerPanel notify={notify} />}
         {view === "settings" && (
           <SettingsPanel
             settings={settings}
