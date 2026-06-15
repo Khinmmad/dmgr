@@ -1,7 +1,7 @@
 //! Tauri command surface — everything the React frontend can invoke.
 
 use crate::backend::Backend;
-use crate::{audio, bluetooth, details, kernel, platform};
+use crate::{audio, bluetooth, details, kernel, platform, system};
 use dmgr_core::device::Device;
 use serde::Serialize;
 use tauri::State;
@@ -194,6 +194,11 @@ fn is_privileged() -> bool {
 #[tauri::command]
 pub fn platform_info() -> platform::Platform {
     platform::detect()
+}
+
+#[tauri::command]
+pub fn system_info() -> system::SystemInfo {
+    system::info()
 }
 
 // ── Advanced details ─────────────────────────────────────────────────────────

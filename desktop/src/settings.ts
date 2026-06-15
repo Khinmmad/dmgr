@@ -57,7 +57,17 @@ export const PANEL_META: { id: string; label: string }[] = [
   { id: "audio", label: "🔊 Audio" },
   { id: "bluetooth", label: "🔵 Bluetooth" },
   { id: "modules", label: "🧩 Modules" },
+  { id: "system", label: "🖥 System" },
 ];
+
+/** Reconcile a saved panel order with the current PANEL_META: keep known ids in
+ *  their saved order, then append any new panels (and drop unknown ones). Keeps
+ *  the nav correct when panels are added/removed across versions. */
+export function effectivePanelOrder(order: string[]): string[] {
+  const all = PANEL_META.map((p) => p.id);
+  const kept = order.filter((id) => all.includes(id));
+  return [...kept, ...all.filter((id) => !kept.includes(id))];
+}
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: "dark",
@@ -66,7 +76,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fontScale: "md",
   remember: true,
   notifications: true,
-  panelOrder: ["devices", "audio", "bluetooth", "modules"],
+  panelOrder: ["devices", "audio", "bluetooth", "modules", "system"],
   hiddenPanels: [],
   startupView: "devices",
 };

@@ -117,6 +117,18 @@ export interface ModuleInfo {
   params: string[];
 }
 
+export interface SystemInfo {
+  hostname: string;
+  kernel: string;
+  arch: string;
+  uptime: string;
+  cpu_model: string;
+  cpu_cores: number;
+  mem_total_mb: number;
+  mem_used_mb: number;
+  load_avg: string;
+}
+
 export interface Platform {
   os: string;
   distro_id: string;

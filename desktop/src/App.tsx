@@ -11,12 +11,14 @@ import DeviceDetail from "./components/DeviceDetail";
 import AudioPanel from "./components/AudioPanel";
 import BluetoothPanel from "./components/BluetoothPanel";
 import ModulesPanel from "./components/ModulesPanel";
+import SystemPanel from "./components/SystemPanel";
 import SettingsPanel from "./components/SettingsPanel";
 import GearIcon from "./components/GearIcon";
 import type { Settings } from "./settings";
 import {
   applySettings,
   clearUiState,
+  effectivePanelOrder,
   loadSettings,
   loadUiState,
   PANEL_META,
@@ -24,7 +26,7 @@ import {
   saveUiState,
 } from "./settings";
 
-export type View = "devices" | "audio" | "bluetooth" | "modules" | "settings";
+export type View = "devices" | "audio" | "bluetooth" | "modules" | "system" | "settings";
 export type Notify = (msg: string, kind?: "ok" | "err") => void;
 
 // Internal kernel sub-nodes that aren't user-facing "devices":
@@ -194,9 +196,11 @@ export default function App() {
     audio: caps ? caps.audio : true,
     bluetooth: showBluetooth,
     modules: showModules,
+    system: isLinux,
   };
-  // Nav panels: user-chosen order, minus hidden, minus platform-unavailable.
-  const navPanels = settings.panelOrder.filter(
+  // Nav panels: user-chosen order (reconciled with new/removed panels), minus
+  // hidden, minus platform-unavailable.
+  const navPanels = effectivePanelOrder(settings.panelOrder).filter(
     (id) => panelAvail[id] && !settings.hiddenPanels.includes(id)
   );
 
@@ -315,6 +319,7 @@ export default function App() {
           />
         )}
         {view === "modules" && <ModulesPanel notify={notify} />}
+        {view === "system" && <SystemPanel notify={notify} />}
         {view === "settings" && (
           <SettingsPanel
             settings={settings}

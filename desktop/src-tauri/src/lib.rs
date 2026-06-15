@@ -7,6 +7,7 @@ mod hotplug;
 mod kernel;
 mod platform;
 mod privileged;
+mod system;
 #[cfg(target_os = "windows")]
 mod winutil;
 
@@ -52,6 +53,7 @@ pub fn run() {
             commands::bt_scan,
             commands::capabilities,
             commands::platform_info,
+            commands::system_info,
             commands::advanced_details,
             commands::kernel_modules,
             commands::kernel_module_info,

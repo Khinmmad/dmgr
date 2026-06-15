@@ -11,6 +11,7 @@ import type {
   KernelModule,
   ModuleInfo,
   Platform,
+  SystemInfo,
 } from "./types";
 
 export const api = {
@@ -73,6 +74,7 @@ export const api = {
   // meta
   capabilities: () => invoke<Capabilities>("capabilities"),
   platformInfo: () => invoke<Platform>("platform_info"),
+  systemInfo: () => invoke<SystemInfo>("system_info"),
 
   // windows shortcuts
   openDeviceManager: () => invoke<void>("open_device_manager"),

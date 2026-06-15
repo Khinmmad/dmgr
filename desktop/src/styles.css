@@ -704,3 +704,17 @@ button {
   overflow-y: auto;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
 }
+
+/* ── Meter (e.g. RAM usage) ─────────────────────────────────────────────── */
+
+.meter {
+  height: 10px;
+  background: var(--bg-alt);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.meter-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}

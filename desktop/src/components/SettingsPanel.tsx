@@ -1,5 +1,12 @@
 import type { Settings } from "../settings";
-import { ACCENTS, DEFAULT_SETTINGS, FONT_SCALES, PANEL_META, THEMES } from "../settings";
+import {
+  ACCENTS,
+  DEFAULT_SETTINGS,
+  effectivePanelOrder,
+  FONT_SCALES,
+  PANEL_META,
+  THEMES,
+} from "../settings";
 
 interface Props {
   settings: Settings;
@@ -8,6 +15,7 @@ interface Props {
 }
 
 export default function SettingsPanel({ settings, onChange, platformName }: Props) {
+  const panelOrder = effectivePanelOrder(settings.panelOrder);
   return (
     <div>
       <div className="panel-title">⚙ Settings</div>
@@ -157,12 +165,12 @@ export default function SettingsPanel({ settings, onChange, platformName }: Prop
           </select>
         </div>
 
-        {settings.panelOrder.map((id, i) => {
+        {panelOrder.map((id, i) => {
           const meta = PANEL_META.find((p) => p.id === id);
           if (!meta) return null;
           const hidden = settings.hiddenPanels.includes(id);
           const move = (dir: number) => {
-            const arr = [...settings.panelOrder];
+            const arr = [...panelOrder];
             const j = i + dir;
             if (j < 0 || j >= arr.length) return;
             [arr[i], arr[j]] = [arr[j], arr[i]];
@@ -189,7 +197,7 @@ export default function SettingsPanel({ settings, onChange, platformName }: Prop
                 <button
                   className="btn ghost"
                   onClick={() => move(1)}
-                  disabled={i === settings.panelOrder.length - 1}
+                  disabled={i === panelOrder.length - 1}
                   title="Move down"
                 >
                   ↓
