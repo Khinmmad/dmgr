@@ -33,6 +33,7 @@ pub fn run() {
             commands::set_property,
             commands::bind_driver,
             commands::unbind_driver,
+            commands::reload_driver,
             commands::set_device_enabled,
             commands::audio_outputs,
             commands::audio_inputs,

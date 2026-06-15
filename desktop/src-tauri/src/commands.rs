@@ -67,6 +67,29 @@ pub fn unbind_driver(backend: State<'_, Backend>, path: String) -> Result<(), St
     backend.unbind(&path)
 }
 
+/// Reload the kernel module behind a device's driver (`modprobe -r` + `modprobe`)
+/// — the Linux analog of "update driver". Fails harmlessly if the module is in
+/// use. `driver` is validated to a module-name charset to keep the shell safe.
+#[tauri::command]
+pub fn reload_driver(driver: String) -> Result<(), String> {
+    if driver.is_empty()
+        || !driver.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err("invalid module name".into());
+    }
+    #[cfg(not(windows))]
+    {
+        crate::privileged::run_pkexec(
+            "sh",
+            &["-c", &format!("modprobe -r {driver} && modprobe {driver}")],
+        )
+    }
+    #[cfg(windows)]
+    {
+        Err("Reloading drivers isn't supported on Windows — use Device Manager.".into())
+    }
+}
+
 /// Windows-style "Enable/Disable device".
 #[tauri::command]
 pub fn set_device_enabled(

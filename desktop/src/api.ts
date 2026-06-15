@@ -26,6 +26,7 @@ export const api = {
   bindDriver: (path: string, driver: string) =>
     invoke<void>("bind_driver", { path, driver }),
   unbindDriver: (path: string) => invoke<void>("unbind_driver", { path }),
+  reloadDriver: (driver: string) => invoke<void>("reload_driver", { driver }),
   setDeviceEnabled: (path: string, enabled: boolean) =>
     invoke<void>("set_device_enabled", { path, enabled }),
 
